@@ -1,9 +1,12 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
-const eventSchema = new mongoose.Schema({
-  bookingId: { type: mongoose.Schema.Types.ObjectId, ref: "Booking", required: true },
-  status: String, // e.g., "Provider on the way", "Work started", "Work completed"
-  timestamp: { type: Date, default: Date.now },
-}, { timestamps: true });
+const eventServiceSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  icon: { type: String, required: true }, // store icon name or URL
+  category: { type: String, required: true },
+  description: { type: String },
+});
 
-export default mongoose.model("Event", eventSchema);
+const EventService = mongoose.model('EventService', eventServiceSchema);
+
+export default EventService;

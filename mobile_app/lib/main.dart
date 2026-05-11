@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
+import 'screens/provider_login_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -11,11 +12,12 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    const token = '8e92999bc7b5d77229b2764f3a4204196429772df852547228385ef0e7e0e8dd5461ee5cdf208ee1fdb48e067b255c45d45b51b1c09b735888e83cbf8b5d162a';
     return MaterialApp(
       title: 'Mobile App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: const LoginScreen(),
+      home: EventDashboardScreen(token: token),
         // This is the theme of your application.
         //
         // TRY THIS: Try running your application with "flutter run". You'll see
