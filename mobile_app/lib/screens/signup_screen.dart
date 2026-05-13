@@ -1,62 +1,80 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import '../services/api_service.dart';
+import '../widgets/custom_textfield.dart';
+import '../widgets/custom_button.dart';
 import 'login_screen.dart';
-import 'home_screen.dart';
+import 'customer_home_screen.dart';
+import 'provider_home_screen.dart';
 
 class SignupScreen extends StatefulWidget {
-  const SignupScreen({super.key});
+  final String role;
+  const SignupScreen({super.key, required this.role});
 
   @override
   State<SignupScreen> createState() => _SignupScreenState();
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final nameController = TextEditingController();
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  bool isLoading = false;
+  final nameCtrl = TextEditingController();
+  final emailCtrl = TextEditingController();
+  final passCtrl = TextEditingController();
+  String message = '';
+  bool loading = false;
 
-  void handleSignup() async {
-    setState(() => isLoading = true);
-    final result = await AuthService.signup(
-      nameController.text,
-      emailController.text,
-      passwordController.text,
-    );
-    setState(() => isLoading = false);
+  Future<void> signup() async {
+    setState(() => loading = true);
+    final data = {
+      'name': nameCtrl.text,
+      'email': emailCtrl.text,
+      'password': passCtrl.text,
+      'role': widget.role,
+    };
+    final res = await ApiService.register(data);
+    setState(() => loading = false);
 
-    if (result["success"]) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result["message"]), backgroundColor: Colors.green),
+    if (res['user'] != null) {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => widget.role == 'customer'
+              ? const CustomerHomeScreen()
+              : const ProviderHomeScreen(),
+        ),
       );
-      if (mounted) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
-      }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result["message"]), backgroundColor: Colors.red),
-      );
+      setState(() => message = res['message'] ?? 'Signup failed');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Sign Up")),
+      appBar: AppBar(title: Text('${widget.role} Signup')),
       body: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            TextField(controller: nameController, decoration: const InputDecoration(labelText: "Name")),
-            TextField(controller: emailController, decoration: const InputDecoration(labelText: "Email")),
-            TextField(controller: passwordController, decoration: const InputDecoration(labelText: "Password"), obscureText: true),
+            CustomTextField(controller: nameCtrl, label: 'Name'),
+            const SizedBox(height: 10),
+            CustomTextField(controller: emailCtrl, label: 'Email'),
+            const SizedBox(height: 10),
+            CustomTextField(controller: passCtrl, label: 'Password', obscure: true),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: isLoading ? null : handleSignup,
-              child: isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Sign Up"),
+            loading
+                ? const CircularProgressIndicator()
+                : CustomButton(text: 'Signup', onPressed: signup),
+            const SizedBox(height: 10),
+            Text(message, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 20),
+            TextButton(
+              onPressed: () => Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => LoginScreen(role: widget.role),
+                ),
+              ),
+              child: const Text('Already have an account? Login'),
             ),
           ],
         ),

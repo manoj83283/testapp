@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/provider_service.dart';
-import '../models/provider_model.dart';
 
 class ProviderProfileEditScreen extends StatefulWidget {
   final String token;

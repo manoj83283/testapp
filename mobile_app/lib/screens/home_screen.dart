@@ -1,53 +1,44 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'login_screen.dart';
+import '../services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String? userName;
+  List<dynamic> services = [];
+  bool loading = true;
 
   @override
   void initState() {
     super.initState();
-    loadUser();
+    loadServices();
   }
 
-  Future<void> loadUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      userName = prefs.getString("userName") ?? "User";
-    });
-  }
-
-  void logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    if (mounted) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+  Future<void> loadServices() async {
+    try {
+      services = await ApiService.fetchServices();
+    } catch (e) {
+      print(e);
     }
+    setState(() => loading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Home Dashboard"),
-        actions: [
-          IconButton(onPressed: logout, icon: const Icon(Icons.logout)),
-        ],
-      ),
-      body: Center(
-        child: Text(
-          "Welcome, $userName 👋",
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-        ),
-      ),
+      appBar: AppBar(title: const Text('Available Services')),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              itemCount: services.length,
+              itemBuilder: (context, i) => ListTile(
+                title: Text(services[i]['name']),
+                subtitle: Text(services[i]['description']),
+              ),
+            ),
     );
   }
 }

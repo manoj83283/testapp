@@ -1,58 +1,46 @@
 import 'package:flutter/material.dart';
-import 'provider_profile_edit_screen.dart';
-import '../models/provider_model.dart';
-import '../services/provider_service.dart';
+import '../services/api_service.dart';
 
-class ProviderDashboardScreen extends StatefulWidget {
-  final String token;
-  const ProviderDashboardScreen({required this.token, super.key});
-
+class ProviderHomeScreen extends StatefulWidget {
+  const ProviderHomeScreen({super.key});
   @override
-  State<ProviderDashboardScreen> createState() => _ProviderDashboardScreenState();
+  State<ProviderHomeScreen> createState() => _ProviderHomeScreenState();
 }
 
-class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
-  ProviderModel? provider;
-  bool loading = true;
+class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
+  final nameCtrl = TextEditingController();
+  final descCtrl = TextEditingController();
+  final priceCtrl = TextEditingController();
+  String message = '';
 
-  @override
-  void initState() {
-    super.initState();
-    _loadProfile();
-  }
-
-  Future<void> _loadProfile() async {
-    // You could fetch provider profile using token if you add a GET /providers/me endpoint.
-    setState(() => loading = false);
+  Future<void> createService() async {
+    final data = {
+      "name": nameCtrl.text,
+      "description": descCtrl.text,
+      "pricePerHour": double.tryParse(priceCtrl.text) ?? 0,
+    };
+    final res = await ApiService.postService(data);
+    setState(() => message = res);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Provider Dashboard')),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : provider == null
-              ? const Center(child: Text('Profile not loaded'))
-              : Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      Text(provider!.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                      Text(provider!.serviceType),
-                      Text('Rating: ${provider!.rating}'),
-                      Text('₹${provider!.pricePerHour}/hour | ₹${provider!.pricePerDay}/day'),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => ProviderProfileEditScreen(token: widget.token)),
-                        ),
-                        child: const Text('Edit Profile / Upload Media'),
-                      ),
-                    ],
-                  ),
-                ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(children: [
+          TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Service Name')),
+          const SizedBox(height: 10),
+          TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Description')),
+          const SizedBox(height: 10),
+          TextField(controller: priceCtrl, decoration: const InputDecoration(labelText: 'Price per hour')),
+          const SizedBox(height: 20),
+          ElevatedButton(onPressed: createService, child: const Text('Add Service')),
+          const SizedBox(height: 20),
+          Text(message),
+        ]),
+      ),
     );
   }
 }

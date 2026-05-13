@@ -1,61 +1,88 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 import '../services/auth_service.dart';
-import 'signup_screen.dart';
-import 'home_screen.dart';
+import '../widgets/custom_textfield.dart';
+import '../widgets/custom_button.dart';
+import 'customer_home_screen.dart';
+import 'provider_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final String role;
+  const LoginScreen({super.key, required this.role});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  bool isLoading = false;
+  final emailCtrl = TextEditingController();
+  final passCtrl = TextEditingController();
+  String message = '';
+  bool loading = false;
 
-  void handleLogin() async {
-    setState(() => isLoading = true);
-    final result = await AuthService.login(emailController.text, passwordController.text);
-    setState(() => isLoading = false);
+  Future<void> login() async {
+    setState(() => loading = true);
+    final res = await ApiService.login(emailCtrl.text, passCtrl.text);
+    setState(() => loading = false);
 
-    if (result["success"]) {
-      if (mounted) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result["message"]), backgroundColor: Colors.red),
+    if (res['token'] != null) {
+      await AuthService.saveToken(res['token']);
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => widget.role == 'customer'
+              ? const CustomerHomeScreen()
+              : const ProviderHomeScreen(),
+        ),
       );
+    } else {
+      setState(() => message = res['message'] ?? 'Login failed');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Login")),
+      appBar: AppBar(title: Text('${widget.role} Login')),
       body: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            TextField(controller: emailController, decoration: const InputDecoration(labelText: "Email")),
-            TextField(controller: passwordController, decoration: const InputDecoration(labelText: "Password"), obscureText: true),
+            CustomTextField(controller: emailCtrl, label: 'Email'),
+            const SizedBox(height: 10),
+            CustomTextField(controller: passCtrl, label: 'Password', obscure: true),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: isLoading ? null : handleLogin,
-              child: isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Login"),
-            ),
+            loading
+                ? const CircularProgressIndicator()
+                : CustomButton(text: 'Login', onPressed: login),
+            const SizedBox(height: 10),
+            Text(message, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 20),
             TextButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignupScreen())),
-              child: const Text("Don't have an account? Sign up"),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SignupScreen(role: widget.role),
+                ),
+              ),
+              child: const Text('Don’t have an account? Sign up'),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class SignupScreen extends StatelessWidget {
+  final String role;
+  const SignupScreen({super.key, required this.role});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(child: Text('Navigate to signup screen for $role')),
     );
   }
 }

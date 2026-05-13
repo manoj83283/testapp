@@ -4,7 +4,7 @@ import '../services/api_service.dart';
 
 class EventDashboardScreen extends StatefulWidget {
   final String token;
-  const EventDashboardScreen({required this.token, Key? key}) : super(key: key);
+  const EventDashboardScreen({required this.token, super.key});
 
   @override
   State<EventDashboardScreen> createState() => _EventDashboardScreenState();
