@@ -1,82 +1,113 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../services/api_service.dart';
-import '../widgets/custom_textfield.dart';
-import '../widgets/custom_button.dart';
+import 'home_screen.dart';
 import 'login_screen.dart';
-import 'customer_home_screen.dart';
-import 'provider_home_screen.dart';
 
 class SignupScreen extends StatefulWidget {
-  final String role;
-  const SignupScreen({super.key, required this.role});
+  const SignupScreen({super.key});
 
   @override
   State<SignupScreen> createState() => _SignupScreenState();
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final nameCtrl = TextEditingController();
-  final emailCtrl = TextEditingController();
-  final passCtrl = TextEditingController();
-  String message = '';
-  bool loading = false;
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController firstCtrl = TextEditingController();
+  final TextEditingController lastCtrl = TextEditingController();
+  final TextEditingController emailCtrl = TextEditingController();
+  final TextEditingController phoneCtrl = TextEditingController();
+  final TextEditingController passCtrl = TextEditingController();
 
-  Future<void> signup() async {
-    setState(() => loading = true);
+  bool isLoading = false;
+
+  Future<void> handleSignup() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => isLoading = true);
+
     final data = {
-      'name': nameCtrl.text,
-      'email': emailCtrl.text,
-      'password': passCtrl.text,
-      'role': widget.role,
+      "firstName": firstCtrl.text.trim(),
+      "lastName": lastCtrl.text.trim(),
+      "email": emailCtrl.text.trim(),
+      "phone": phoneCtrl.text.trim(),
+      "password": passCtrl.text.trim(),
     };
-    final res = await ApiService.register(data);
-    setState(() => loading = false);
 
-    if (res['user'] != null) {
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => widget.role == 'customer'
-              ? const CustomerHomeScreen()
-              : const ProviderHomeScreen(),
-        ),
-      );
-    } else {
-      setState(() => message = res['message'] ?? 'Signup failed');
+    try {
+      final res = await ApiService.signup(data);
+      if (res["message"] == "User registered successfully") {
+        Fluttertoast.showToast(msg: "Signup successful!");
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      } else {
+        Fluttertoast.showToast(msg: res["message"] ?? "Signup failed");
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Error: $e");
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.role} Signup')),
+      appBar: AppBar(title: const Text("Sign Up")),
       body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            CustomTextField(controller: nameCtrl, label: 'Name'),
-            const SizedBox(height: 10),
-            CustomTextField(controller: emailCtrl, label: 'Email'),
-            const SizedBox(height: 10),
-            CustomTextField(controller: passCtrl, label: 'Password', obscure: true),
-            const SizedBox(height: 20),
-            loading
-                ? const CircularProgressIndicator()
-                : CustomButton(text: 'Signup', onPressed: signup),
-            const SizedBox(height: 10),
-            Text(message, style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 20),
-            TextButton(
-              onPressed: () => Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => LoginScreen(role: widget.role),
-                ),
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            children: [
+              TextFormField(
+                controller: firstCtrl,
+                decoration: const InputDecoration(labelText: "First Name"),
+                validator: (v) => v!.isEmpty ? "Required" : null,
               ),
-              child: const Text('Already have an account? Login'),
-            ),
-          ],
+              TextFormField(
+                controller: lastCtrl,
+                decoration: const InputDecoration(labelText: "Last Name"),
+                validator: (v) => v!.isEmpty ? "Required" : null,
+              ),
+              TextFormField(
+                controller: emailCtrl,
+                decoration: const InputDecoration(labelText: "Email"),
+                validator: (v) =>
+                    v!.contains("@") ? null : "Enter valid email",
+              ),
+              TextFormField(
+                controller: phoneCtrl,
+                decoration: const InputDecoration(labelText: "Phone"),
+                validator: (v) =>
+                    v!.length < 10 ? "Enter valid phone number" : null,
+              ),
+              TextFormField(
+                controller: passCtrl,
+                decoration: const InputDecoration(labelText: "Password"),
+                obscureText: true,
+                validator: (v) =>
+                    v!.length < 6 ? "Password must be at least 6 chars" : null,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: isLoading ? null : handleSignup,
+                child: isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("Sign Up"),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  );
+                },
+                child: const Text("Already have an account? Login"),
+              ),
+            ],
+          ),
         ),
       ),
     );

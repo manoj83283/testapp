@@ -1,88 +1,92 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../services/api_service.dart';
-import '../services/auth_service.dart';
-import '../widgets/custom_textfield.dart';
-import '../widgets/custom_button.dart';
-import 'customer_home_screen.dart';
-import 'provider_home_screen.dart';
+import 'home_screen.dart';
+import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  final String role;
-  const LoginScreen({super.key, required this.role});
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final emailCtrl = TextEditingController();
-  final passCtrl = TextEditingController();
-  String message = '';
-  bool loading = false;
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController emailCtrl = TextEditingController();
+  final TextEditingController passCtrl = TextEditingController();
+  bool isLoading = false;
 
-  Future<void> login() async {
-    setState(() => loading = true);
-    final res = await ApiService.login(emailCtrl.text, passCtrl.text);
-    setState(() => loading = false);
+  Future<void> handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => isLoading = true);
 
-    if (res['token'] != null) {
-      await AuthService.saveToken(res['token']);
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => widget.role == 'customer'
-              ? const CustomerHomeScreen()
-              : const ProviderHomeScreen(),
-        ),
-      );
-    } else {
-      setState(() => message = res['message'] ?? 'Login failed');
+    final data = {
+      "email": emailCtrl.text.trim(),
+      "password": passCtrl.text.trim(),
+    };
+
+    try {
+      final res = await ApiService.login(data);
+      if (res["token"] != null) {
+        Fluttertoast.showToast(msg: "Login successful!");
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      } else {
+        Fluttertoast.showToast(msg: res["message"] ?? "Login failed");
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Error: $e");
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.role} Login')),
+      appBar: AppBar(title: const Text("Login")),
       body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            CustomTextField(controller: emailCtrl, label: 'Email'),
-            const SizedBox(height: 10),
-            CustomTextField(controller: passCtrl, label: 'Password', obscure: true),
-            const SizedBox(height: 20),
-            loading
-                ? const CircularProgressIndicator()
-                : CustomButton(text: 'Login', onPressed: login),
-            const SizedBox(height: 10),
-            Text(message, style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 20),
-            TextButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SignupScreen(role: widget.role),
-                ),
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            children: [
+              TextFormField(
+                controller: emailCtrl,
+                decoration: const InputDecoration(labelText: "Email"),
+                validator: (v) =>
+                    v!.contains("@") ? null : "Enter valid email",
               ),
-              child: const Text('Don’t have an account? Sign up'),
-            ),
-          ],
+              TextFormField(
+                controller: passCtrl,
+                decoration: const InputDecoration(labelText: "Password"),
+                obscureText: true,
+                validator: (v) =>
+                    v!.length < 6 ? "Password must be at least 6 chars" : null,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: isLoading ? null : handleLogin,
+                child: isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("Login"),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SignupScreen()),
+                  );
+                },
+                child: const Text("Don’t have an account? Sign Up"),
+              ),
+            ],
+          ),
         ),
       ),
-    );
-  }
-}
-
-class SignupScreen extends StatelessWidget {
-  final String role;
-  const SignupScreen({super.key, required this.role});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(child: Text('Navigate to signup screen for $role')),
     );
   }
 }
