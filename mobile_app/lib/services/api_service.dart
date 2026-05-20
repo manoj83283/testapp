@@ -6,11 +6,15 @@ import '../config/api_config.dart';
 class ApiService {
   // 🔹 Signup
   static Future<Map<String, dynamic>> signup(Map<String, dynamic> data) async {
+     print("🔗 Calling signup API: ${ApiConfig.baseUrl}/auth/register");
+     print("📦 Request body: ${jsonEncode(data)}");
     final response = await http.post(
-      Uri.parse("${ApiConfig.baseUrl}/auth/register"),
+      Uri.parse(ApiConfig.signupUrl),
       headers: {"Content-Type": "application/json"},
       body: jsonEncode(data),
-    );
+    )
+    .timeout(const Duration(seconds: 10));
+    print("📥 Raw response: ${response.statusCode} ${response.body}");
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body);
@@ -22,7 +26,7 @@ class ApiService {
   // 🔹 Login
   static Future<Map<String, dynamic>> login(Map<String, dynamic> data) async {
     final response = await http.post(
-      Uri.parse("${ApiConfig.baseUrl}/auth/login"),
+      Uri.parse(ApiConfig.loginUrl),
       headers: {"Content-Type": "application/json"},
       body: jsonEncode(data),
     );

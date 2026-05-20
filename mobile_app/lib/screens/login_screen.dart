@@ -18,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool isLoading = false;
 
   Future<void> handleLogin() async {
+    print("🟢 Login button pressed");
     if (!_formKey.currentState!.validate()) return;
     setState(() => isLoading = true);
 
@@ -27,7 +28,9 @@ class _LoginScreenState extends State<LoginScreen> {
     };
 
     try {
+      print("📤 Sending login request...");
       final res = await ApiService.login(data);
+      print("📥 Response received: $res");
       if (res["token"] != null) {
         Fluttertoast.showToast(msg: "Login successful!");
         Navigator.pushReplacement(
@@ -38,6 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Fluttertoast.showToast(msg: res["message"] ?? "Login failed");
       }
     } catch (e) {
+      print("❌ Login error: $e");
       Fluttertoast.showToast(msg: "Error: $e");
     } finally {
       setState(() => isLoading = false);

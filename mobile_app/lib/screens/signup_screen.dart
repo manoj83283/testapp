@@ -22,6 +22,7 @@ class _SignupScreenState extends State<SignupScreen> {
   bool isLoading = false;
 
   Future<void> handleSignup() async {
+      print("🟢 Sign‑Up button pressed");
     if (!_formKey.currentState!.validate()) return;
     setState(() => isLoading = true);
 
@@ -34,7 +35,10 @@ class _SignupScreenState extends State<SignupScreen> {
     };
 
     try {
+      print("📤 Sending signup request...");
       final res = await ApiService.signup(data);
+      print("📥 Response received: $res");
+
       if (res["message"] == "User registered successfully") {
         Fluttertoast.showToast(msg: "Signup successful!");
         Navigator.pushReplacement(
@@ -45,6 +49,7 @@ class _SignupScreenState extends State<SignupScreen> {
         Fluttertoast.showToast(msg: res["message"] ?? "Signup failed");
       }
     } catch (e) {
+      print("❌ Signup error: $e");
       Fluttertoast.showToast(msg: "Error: $e");
     } finally {
       setState(() => isLoading = false);
