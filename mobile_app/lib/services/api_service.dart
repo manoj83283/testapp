@@ -209,9 +209,63 @@ class ApiService {
               : "Failed to load services",
         );
       }
-    } catch (e) {
+    } 
+    catch (e) {
       print("❌ Fetch services error: $e");
       throw Exception("Failed to load services: $e");
+    }
+  }
+  // ------------------------------------------------------------
+  // Fetch Services By Category
+  // Dynamic Nearby Services
+  // Example: GET /api/services?category=wedding
+  // ------------------------------------------------------------
+  static Future<List<dynamic>> fetchServicesByCategory(String categoryKey) async {
+    final url = Uri.parse("${ApiConfig.serviceUrl}?category=$categoryKey");
+    final headers = await _authHeaders();
+
+    print("🔗 Fetch services by category API: $url");
+
+    try {
+      final response = await http
+          .get(
+            url,
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 10));
+
+      print(
+        "📥 Category services response: ${response.statusCode} ${response.body}",
+      );
+
+      final result = _decodeResponse(response);
+
+      if (response.statusCode == 200) {
+        if (result is List) {
+          return result;
+        }
+
+        if (result is Map<String, dynamic>) {
+          if (result["services"] is List) {
+            return result["services"];
+          }
+
+          if (result["data"] is List) {
+            return result["data"];
+          }
+        }
+
+        return [];
+      } else {
+        throw Exception(
+          result is Map<String, dynamic>
+              ? result["message"] ?? "Failed to load services"
+              : "Failed to load services",
+        );
+      }
+    } catch (e) {
+      print("❌ Fetch category services error: $e");
+      throw Exception("Failed to load services by category: $e");
     }
   }
 

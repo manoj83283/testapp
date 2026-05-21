@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'nearby_services_screen.dart';
 
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -11,7 +10,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController searchController = TextEditingController();
-
   String searchQuery = "";
 
   final List<Map<String, dynamic>> eventCategories = [
@@ -37,7 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
       "description": "Office events, conferences, team outings",
     },
     {
-      "name": "College / Graduation Events",
+      "name": "College Events",
       "key": "college",
       "icon": Icons.school,
       "color": Colors.deepPurple,
@@ -65,14 +63,14 @@ class _HomeScreenState extends State<HomeScreen> {
       "description": "Kids games, magic shows, cartoon themes",
     },
     {
-      "name": "Cultural / Community Events",
+      "name": "Cultural Events",
       "key": "cultural",
       "icon": Icons.groups,
       "color": Colors.teal,
       "description": "Community functions, cultural shows, festivals",
     },
     {
-      "name": "Outdoor / Destination Events",
+      "name": "Outdoor Events",
       "key": "outdoor",
       "icon": Icons.beach_access,
       "color": Colors.cyan,
@@ -85,10 +83,11 @@ class _HomeScreenState extends State<HomeScreen> {
       return eventCategories;
     }
 
+    final query = searchQuery.toLowerCase().trim();
+
     return eventCategories.where((category) {
       final name = category["name"].toString().toLowerCase();
       final description = category["description"].toString().toLowerCase();
-      final query = searchQuery.toLowerCase();
 
       return name.contains(query) || description.contains(query);
     }).toList();
@@ -99,10 +98,16 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => NearbyServicesScreen(
-          categoryName: category["name"],
-          categoryKey: category["key"],
+          categoryName: category["name"].toString(),
+          categoryKey: category["key"].toString(),
         ),
       ),
+    );
+  }
+
+  void showComingSoon(String featureName) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("$featureName coming soon")),
     );
   }
 
@@ -111,34 +116,37 @@ class _HomeScreenState extends State<HomeScreen> {
     searchController.dispose();
     super.dispose();
   }
-
   @override
   Widget build(BuildContext context) {
     final categories = filteredCategories;
 
     return Scaffold(
+      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
         title: const Text("EventEase"),
         centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Notifications coming soon")),
-              );
-            },
+            onPressed: () => showComingSoon("Notifications"),
+          ),
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            onPressed: () => showComingSoon("Profile"),
           ),
         ],
       ),
       body: Column(
         children: [
-          // Header
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
             decoration: BoxDecoration(
               color: Theme.of(context).primaryColor.withOpacity(0.08),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(22),
+                bottomRight: Radius.circular(22),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,8 +167,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-
-                // Search Bar
                 TextField(
                   controller: searchController,
                   onChanged: (value) {
@@ -184,10 +190,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         : null,
                     filled: true,
                     fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide.none,
@@ -197,10 +199,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-
-          // Category Title
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
             child: Row(
               children: [
                 const Text(
@@ -221,30 +221,28 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-
-          // Category Grid
           Expanded(
             child: categories.isEmpty
-                ? const Center(
-                    child: Text("No categories found"),
-                  )
+                ? const Center(child: Text("No categories found"))
                 : GridView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                     itemCount: categories.length,
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
                       crossAxisSpacing: 16,
                       mainAxisSpacing: 16,
-                      childAspectRatio: 0.92,
+                      childAspectRatio: 0.88,
                     ),
                     itemBuilder: (context, index) {
                       final category = categories[index];
+                      final Color categoryColor = category["color"] as Color;
 
                       return InkWell(
                         borderRadius: BorderRadius.circular(18),
                         onTap: () => openNearbyServices(category),
                         child: Container(
+                          padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(18),
@@ -255,27 +253,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                 offset: const Offset(0, 4),
                               ),
                             ],
-                            border: Border.all(
-                              color: Colors.grey.shade200,
-                            ),
                           ),
-                          padding: const EdgeInsets.all(14),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               CircleAvatar(
-                                radius: 30,
+                                radius: 31,
                                 backgroundColor:
-                                    category["color"].withOpacity(0.12),
+                                    categoryColor.withOpacity(0.12),
                                 child: Icon(
-                                  category["icon"],
-                                  color: category["color"],
-                                  size: 32,
+                                  category["icon"] as IconData,
+                                  color: categoryColor,
+                                  size: 33,
                                 ),
                               ),
                               const SizedBox(height: 14),
                               Text(
-                                category["name"],
+                                category["name"].toString(),
                                 textAlign: TextAlign.center,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -286,7 +280,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                category["description"],
+                                category["description"].toString(),
                                 textAlign: TextAlign.center,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -294,6 +288,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                   fontSize: 12,
                                   color: Colors.grey.shade600,
                                 ),
+                              ),
+                              const SizedBox(height: 10),
+                              Icon(
+                                Icons.arrow_forward,
+                                size: 18,
+                                color: categoryColor,
                               ),
                             ],
                           ),
