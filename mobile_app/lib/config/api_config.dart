@@ -14,15 +14,18 @@ class ApiConfig {
       // Running on iOS Simulator
       return "http://127.0.0.1:5000/api";
     } else {
-      // Running on a physical device or desktop build
-      // ✅ Use your computer's local IP address here
-      return "http://192.168.1.36:5000/api";
+      // Running on Windows desktop / physical device
+      return "http://10.152.35.172:5000/api";
     }
   }
 
   // 🔹 Common API endpoints
-  static String get signupUrl => "$baseUrl/auth/register";
-  static String get loginUrl => "$baseUrl/auth/login";
+  static String get signupUrl => "$baseUrl/auth/signup";
+  static String get signinUrl => "$baseUrl/auth/signin";
+
+  // ✅ Optional alias, if your api_service.dart still uses loginUrl
+  static String get loginUrl => signinUrl;
+
   static String get serviceUrl => "$baseUrl/services";
   static String get bookingUrl => "$baseUrl/bookings";
   static String get profileUrl => "$baseUrl/auth/profile";
