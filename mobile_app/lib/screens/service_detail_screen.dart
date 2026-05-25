@@ -1,115 +1,155 @@
 import 'package:flutter/material.dart';
-import '../screens/booking_screen.dart'; // ✅ Import the booking screen
+import 'booking_screen.dart';
 
-class ServiceDetailScreen extends StatefulWidget {
+class ServiceDetailScreen extends StatelessWidget {
   final Map<String, dynamic> service;
 
   const ServiceDetailScreen({super.key, required this.service});
 
   @override
-  State<ServiceDetailScreen> createState() => _ServiceDetailScreenState();
-}
-
-class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
-  DateTime? selectedDate;
-  bool isLoading = false;
-  final TextEditingController notesCtrl = TextEditingController();
-
-  // 🔹 Step 1: Date Picker
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: now,
-      firstDate: now,
-      lastDate: DateTime(now.year + 1),
-    );
-    if (picked != null) setState(() => selectedDate = picked);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final s = widget.service;
+    final name = service["name"] ?? "Service";
+    final providerName = service["providerName"] ?? "Provider";
+    final serviceType = service["serviceType"] ?? "";
+    final priceRange = service["priceRange"] ?? "Price not available";
+    final location = service["location"] ?? "Location not available";
+    final rating = service["rating"] ?? 0;
+    final reviews = service["reviewCount"] ?? service["reviews"] ?? 0;
 
     return Scaffold(
-      appBar: AppBar(title: Text(s["name"] ?? "Service Details")),
+      appBar: AppBar(
+        title: Text(name.toString()),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🔹 Service Image
-            if (s["iconURL"] != null && s["iconURL"].isNotEmpty)
-              Center(
-                child: Image.network(
-                  s["iconURL"],
-                  height: 120,
-                  errorBuilder: (context, error, stackTrace) =>
-                      const Icon(Icons.event, size: 100, color: Colors.blueAccent),
-                ),
-              ),
-            const SizedBox(height: 20),
-
-            // 🔹 Service Description
-            Text(
-              s["description"] ?? "No description available",
-              style: const TextStyle(fontSize: 16),
+            /// ✅ COVER IMAGE (placeholder)
+            Container(
+              height: 200,
+              width: double.infinity,
+              color: Colors.grey.shade300,
+              child: const Icon(Icons.storefront, size: 80),
             ),
-            const SizedBox(height: 10),
 
-            // 🔹 Service Info
-            Text("⭐ Rating: ${s["avgRating"] ?? 0}"),
-            Text("Providers: ${s["providerCount"] ?? 0}"),
-            Text(
-              "Starting Price: ₹${s["basePrice"] ?? 0}",
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-
-            // 🔹 Notes Input
-            TextField(
-              controller: notesCtrl,
-              decoration: const InputDecoration(
-                labelText: "Notes (optional)",
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
-            ),
-            const SizedBox(height: 20),
-
-            // 🔹 Date Picker Button
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _pickDate,
-                    icon: const Icon(Icons.calendar_today),
-                    label: Text(
-                      selectedDate == null
-                          ? "Select Date"
-                          : "Date: ${selectedDate!.toLocal().toString().split(' ')[0]}",
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  /// ✅ SERVICE NAME
+                  Text(
+                    name.toString(),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
 
-            // 🔹 Book Now Button
-            ElevatedButton(
-              onPressed: () {
-                // ✅ Navigate to BookingScreen and pass full service data
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => BookingScreen(service: s),
+                  const SizedBox(height: 6),
+
+                  /// ✅ PROVIDER NAME
+                  Text(
+                    "by $providerName",
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 14,
+                    ),
                   ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
+
+                  const SizedBox(height: 12),
+
+                  /// ✅ RATING
+                  Row(
+                    children: [
+                      const Icon(Icons.star, color: Colors.amber, size: 20),
+                      const SizedBox(width: 5),
+                      Text(rating.toString()),
+                      const SizedBox(width: 5),
+                      Text("($reviews reviews)"),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  /// ✅ SERVICE TYPE
+                  Text(
+                    "Service Type",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(serviceType),
+
+                  const SizedBox(height: 14),
+
+                  /// ✅ LOCATION
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on_outlined),
+                      const SizedBox(width: 5),
+                      Expanded(child: Text(location)),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  /// ✅ PRICE
+                  Row(
+                    children: [
+                      const Icon(Icons.currency_rupee),
+                      const SizedBox(width: 5),
+                      Text(
+                        priceRange,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  /// ✅ DESCRIPTION (optional)
+                  if (service["description"] != null) ...[
+                    const Text(
+                      "Description",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(service["description"]),
+                  ],
+
+                  const SizedBox(height: 40),
+
+                  /// ✅ BOOK BUTTON
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                BookingScreen(service: service),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text(
+                        "Book Now",
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              child: const Text("Book Now"),
             ),
           ],
         ),

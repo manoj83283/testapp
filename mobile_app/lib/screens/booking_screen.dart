@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 import '../services/api_service.dart';
-import 'booking_success_screen.dart'; // ✅ Optional success screen (Step 4)
+import 'booking_success_screen.dart';
 
 class BookingScreen extends StatefulWidget {
   final Map<String, dynamic> service;
@@ -13,125 +14,207 @@ class BookingScreen extends StatefulWidget {
 
 class _BookingScreenState extends State<BookingScreen> {
   DateTime? selectedDate;
-  final TextEditingController notesCtrl = TextEditingController();
   bool isLoading = false;
 
-  // 🔹 Step 1: Date Picker
-  Future<void> _pickDate() async {
+  final TextEditingController notesController = TextEditingController();
+
+  late Razorpay _razorpay;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _razorpay = Razorpay();
+
+    _razorpay.on(
+        Razorpay.EVENT_PAYMENT_SUCCESS, handlePaymentSuccess);
+    _razorpay.on(
+        Razorpay.EVENT_PAYMENT_ERROR, handlePaymentError);
+    _razorpay.on(
+        Razorpay.EVENT_EXTERNAL_WALLET, handleExternalWallet);
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear();
+    notesController.dispose();
+    super.dispose();
+  }
+
+  /// ✅ DATE PICKER
+  void pickDate() async {
     final now = DateTime.now();
+
     final picked = await showDatePicker(
       context: context,
       initialDate: now,
       firstDate: now,
       lastDate: DateTime(now.year + 1),
     );
-    if (picked != null) setState(() => selectedDate = picked);
+
+    if (picked != null) {
+      setState(() {
+        selectedDate = picked;
+      });
+    }
   }
 
-  // 🔹 Step 2: Confirm Booking (API call)
-  Future<void> _confirmBooking() async {
-    if (selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select a booking date")),
-      );
-      return;
-    }
+  /// ✅ START PAYMENT
+  void startPayment() {
+    final service = widget.service;
 
-    setState(() => isLoading = true);
+    int amount = 500; // default fallback ₹500
 
     try {
-      final res = await ApiService.createBooking(
+      if (service["priceRange"] != null) {
+        // extract first number from "5000-20000"
+        final priceText = service["priceRange"].toString();
+        final firstValue =
+            int.tryParse(priceText.split("-")[0].trim());
+
+        if (firstValue != null) {
+          amount = firstValue;
+        }
+      }
+    } catch (_) {}
+
+    var options = {
+      'key': 'OIwHarT1IyC56LtTXcTvmu39', // ✅ replace this
+      'amount': amount * 100, // paise
+      'name': service["name"] ?? "Service",
+      'description': service["serviceType"] ?? "",
+      'prefill': {
+        'contact': '9876543210',
+        'email': 'test@test.com',
+      }
+    };
+
+    try {
+      _razorpay.open(options);
+    } catch (e) {
+      print("Payment error: $e");
+    }
+  }
+
+  /// ✅ PAYMENT SUCCESS
+  void handlePaymentSuccess(PaymentSuccessResponse response) async {
+    try {
+      await ApiService.createBooking(
         serviceId: widget.service["_id"],
         date: selectedDate!,
-        notes: notesCtrl.text,
+        notes: notesController.text.trim(),
       );
 
-      // ✅ Step 3: Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(res["message"] ?? "Booking successful")),
-      );
-
-      // ✅ Step 4: Navigate to success screen
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const BookingSuccessScreen()),
+        MaterialPageRoute(
+          builder: (_) => const BookingSuccessScreen(),
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
+        SnackBar(content: Text("Booking failed: $e")),
       );
-    } finally {
-      setState(() => isLoading = false);
     }
   }
 
+  /// ✅ PAYMENT ERROR
+  void handlePaymentError(PaymentFailureResponse response) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Payment Failed")),
+    );
+  }
+
+  /// ✅ EXTERNAL WALLET
+  void handleExternalWallet(ExternalWalletResponse response) {}
+
   @override
   Widget build(BuildContext context) {
-    final s = widget.service;
+    final service = widget.service;
 
     return Scaffold(
-      appBar: AppBar(title: Text('Book ${s["name"] ?? "Service"}')),
-      body: SingleChildScrollView(
+      appBar: AppBar(
+        title: const Text("Book & Pay"),
+      ),
+      body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🔹 Service Image
-            if (s["iconURL"] != null && s["iconURL"].isNotEmpty)
-              Center(
-                child: Image.network(
-                  s["iconURL"],
-                  height: 120,
-                  errorBuilder: (context, error, stackTrace) =>
-                      const Icon(Icons.event, size: 100, color: Colors.blueAccent),
-                ),
+            /// ✅ SERVICE NAME
+            Text(
+              service["name"] ?? "",
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
+            ),
+
+            const SizedBox(height: 6),
+
+            Text("Provider: ${service["providerName"] ?? ""}"),
+
             const SizedBox(height: 20),
 
-            // 🔹 Service Info
-            Text(
-              s["description"] ?? "No description available",
-              style: const TextStyle(fontSize: 16),
+            /// ✅ DATE PICKER
+            const Text(
+              "Select Date",
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
+
             const SizedBox(height: 10),
-            Text(
-              "Starting Price: ₹${s["basePrice"] ?? 0}",
-              style: const TextStyle(fontWeight: FontWeight.bold),
+
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    selectedDate == null
+                        ? "No date selected"
+                        : "${selectedDate!.toLocal()}".split(" ")[0],
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: pickDate,
+                  child: const Text("Choose Date"),
+                ),
+              ],
             ),
+
             const SizedBox(height: 20),
 
-            // 🔹 Notes Input
+            /// ✅ NOTES
             TextField(
-              controller: notesCtrl,
+              controller: notesController,
               decoration: const InputDecoration(
-                labelText: "Notes (optional)",
+                labelText: "Additional Notes",
                 border: OutlineInputBorder(),
               ),
-              maxLines: 2,
+              maxLines: 3,
             ),
-            const SizedBox(height: 20),
 
-            // 🔹 Date Picker Button
-            ElevatedButton.icon(
-              onPressed: _pickDate,
-              icon: const Icon(Icons.calendar_today),
-              label: Text(
-                selectedDate == null
-                    ? "Select Date"
-                    : "Date: ${selectedDate!.toLocal().toString().split(' ')[0]}",
-              ),
-            ),
-            const SizedBox(height: 20),
+            const Spacer(),
 
-            // 🔹 Confirm Booking Button
-            ElevatedButton(
-              onPressed: isLoading ? null : _confirmBooking,
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
+            /// ✅ PAY BUTTON
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (selectedDate == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Select date first"),
+                      ),
+                    );
+                    return;
+                  }
+
+                  startPayment();
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: const Text("Pay & Confirm Booking"),
               ),
-              child: isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("Confirm Booking"),
             ),
           ],
         ),

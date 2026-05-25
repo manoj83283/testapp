@@ -35,7 +35,7 @@ connectDB();
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/services", protect, serviceRoutes);
+app.use("/api/services", serviceRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/reviews", reviewRoutes);
 

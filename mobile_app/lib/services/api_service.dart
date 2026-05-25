@@ -268,6 +268,41 @@ class ApiService {
       throw Exception("Failed to load services by category: $e");
     }
   }
+  // ------------------------------------------------------------
+// Create Service API
+// ------------------------------------------------------------
+static Future<Map<String, dynamic>> createService(
+    Map<String, dynamic> data) async {
+  final token = await getToken();
+
+  if (token == null || token.isEmpty) {
+    throw Exception("User not authenticated");
+  }
+
+  final url = Uri.parse(ApiConfig.serviceUrl);
+
+  print("🔗 Create service API: $url");
+  print("📦 Body: ${jsonEncode(data)}");
+
+  final response = await http.post(
+    url,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer $token",
+    },
+    body: jsonEncode(data),
+  );
+
+  print("📥 Response: ${response.statusCode} ${response.body}");
+
+  final result = _decodeResponse(response);
+
+  if (response.statusCode == 200 || response.statusCode == 201) {
+    return result;
+  } else {
+    throw Exception(result["message"] ?? "Create service failed");
+  }
+}
 
   // ------------------------------------------------------------
   // Create Booking
