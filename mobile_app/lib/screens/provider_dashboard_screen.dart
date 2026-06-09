@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'provider_bookings_screen.dart'; // ✅ NEW IMPORT
 
 class ProviderDashboardScreen extends StatefulWidget {
   const ProviderDashboardScreen({super.key});
@@ -11,10 +12,9 @@ class ProviderDashboardScreen extends StatefulWidget {
 
 class _ProviderDashboardScreenState
     extends State<ProviderDashboardScreen> {
-  bool isLoading = false;
-  String? errorMessage;
 
-  List<dynamic> services = [];
+  List services = [];
+  bool isLoading = true;
 
   @override
   void initState() {
@@ -22,41 +22,34 @@ class _ProviderDashboardScreenState
     loadServices();
   }
 
+  /// ✅ LOAD PROVIDER SERVICES
   Future<void> loadServices() async {
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
-
     try {
-      final data = await ApiService.fetchServices();
+      final data = await ApiService.getMyServices();
 
-      // ✅ IMPORTANT: Filter only provider services
       setState(() {
         services = data;
+        isLoading = false;
       });
-
     } catch (e) {
-      setState(() {
-        errorMessage = e.toString();
-      });
+      print("Error loading services: $e");
     }
-
-    setState(() {
-      isLoading = false;
-    });
   }
 
-  void deleteService(int index) {
-    setState(() {
-      services.removeAt(index);
-    });
+  /// ✅ DELETE SERVICE
+  void deleteService(String id) async {
+    await ApiService.deleteService(id);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Service removed (UI only)")),
+      const SnackBar(content: Text("✅ Service Deleted")),
     );
 
-    // 🔥 Later connect DELETE API
+    loadServices();
+  }
+
+  /// ✅ REFRESH
+  void refresh() {
+    loadServices();
   }
 
   @override
@@ -65,98 +58,93 @@ class _ProviderDashboardScreenState
       appBar: AppBar(
         title: const Text("Provider Dashboard"),
         actions: [
+
+          /// ✅ BOOKINGS BUTTON (🔥 THIS FIXES "Coming Soon")
+          IconButton(
+            icon: const Icon(Icons.assignment),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ProviderBookingsScreen(),
+                ),
+              );
+            },
+          ),
+
+          /// ✅ REFRESH
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: loadServices,
-          )
+            onPressed: refresh,
+          ),
         ],
       ),
-      body: buildContent(),
-    );
-  }
 
-  Widget buildContent() {
-    if (isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : services.isEmpty
+              ? const Center(
+                  child: Text("No services added yet"),
+                )
+              : ListView.builder(
+                  itemCount: services.length,
+                  itemBuilder: (context, index) {
 
-    if (errorMessage != null) {
-      return Center(
-        child: Text("Error: $errorMessage"),
-      );
-    }
+                    final s = services[index];
 
-    if (services.isEmpty) {
-      return const Center(
-        child: Text("No services added yet"),
-      );
-    }
+                    return Card(
+                      margin: const EdgeInsets.all(10),
+                      child: ListTile(
+                        leading: s["imageUrl"] != null &&
+                                s["imageUrl"].toString().isNotEmpty
+                            ? Image.network(
+                                s["imageUrl"],
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                              )
+                            : const Icon(Icons.image),
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: services.length,
-      itemBuilder: (context, index) {
-        final service =
-            Map<String, dynamic>.from(services[index] as Map);
+                        title: Text(s["name"] ?? ""),
 
-        return Card(
-          margin: const EdgeInsets.only(bottom: 14),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          elevation: 3,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                /// ✅ SERVICE NAME
-                Text(
-                  service["name"] ?? "",
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
+                        subtitle: Text(
+                          "${s["category"]} • ₹${s["pricePerDay"] ?? 0}",
+                        ),
+
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+
+                            /// ✅ EDIT
+                            IconButton(
+                              icon: const Icon(Icons.edit),
+                              onPressed: () {
+                                // 👉 You can navigate to edit screen later
+                              },
+                            ),
+
+                            /// ✅ DELETE
+                            IconButton(
+                              icon: const Icon(Icons.delete),
+                              onPressed: () {
+                                deleteService(s["_id"]);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
 
-                const SizedBox(height: 6),
-
-                /// ✅ CATEGORY
-                Text("Category: ${service["category"] ?? ""}"),
-
-                const SizedBox(height: 6),
-
-                /// ✅ LOCATION
-                Text("Location: ${service["location"] ?? ""}"),
-
-                const SizedBox(height: 6),
-
-                /// ✅ PRICE
-                Text("Price: ${service["priceRange"] ?? ""}"),
-
-                const SizedBox(height: 10),
-
-                /// ✅ ACTION BUTTONS
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => deleteService(index),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Edit coming soon"),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                )
-              ],
-            ),
-          ),
-        );
-      },
+      /// ✅ ADD SERVICE BUTTON
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          Navigator.pushNamed(context, "/add-service")
+              .then((_) => loadServices());
+        },
+        child: const Icon(Icons.add),
+      ),
     );
   }
 }

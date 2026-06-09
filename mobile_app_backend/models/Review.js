@@ -1,11 +1,16 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const reviewSchema = new mongoose.Schema({
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  providerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Provider' },
+  service: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Service",
+  },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+  },
   rating: Number,
-  text: String,
-  mediaUrls: [String]
+  comment: String,
 });
 
-export default mongoose.model('Review', reviewSchema);
+export default mongoose.model("Review", reviewSchema);

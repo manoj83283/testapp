@@ -37,6 +37,7 @@ const userSchema = new mongoose.Schema(
     // ✅ optional but useful for frontend compatibility
     role: {
       type: String,
+      enum: ["user", "provider"],
       default: "user"
     }
   },

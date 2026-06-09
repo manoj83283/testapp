@@ -2,60 +2,93 @@ import mongoose from "mongoose";
 
 const serviceSchema = new mongoose.Schema(
   {
-    // ✅ Basic details
-    name: { type: String, required: true, trim: true },
-
-    providerName: {
+    /// ✅ BASIC INFO
+    name: {
       type: String,
       required: true,
       trim: true,
     },
 
-    // ✅ IMPORTANT (needed for Flutter category match)
     category: {
       type: String,
       required: true,
-      trim: true,
       lowercase: true,
+      trim: true,
     },
 
-    iconURL: { type: String, default: "" },
-    description: { type: String },
+    description: {
+      type: String,
+      default: "",
+    },
 
-    // ✅ Pricing
-    pricePerDay: { type: Number, default: 0 },
-    pricePerHour: { type: Number, default: 0 },
-    basePrice: { type: Number, default: 0 },
+    serviceType: {
+      type: String,
+      default: "",
+    },
 
-    // ✅ Simple location (Flutter uses string)
+    /// ✅ PRICING
+    pricePerDay: {
+      type: Number,
+      default: 0,
+    },
+
+    pricePerHour: {
+      type: Number,
+      default: 0,
+    },
+
+    basePrice: {
+      type: Number,
+      default: 0,
+    },
+
+    /// ✅ LOCATION (STRING ✅ NO GEO ERROR)
     location: {
       type: String,
       required: true,
-        trim: true,
-     },
-     
+      trim: true,
+    },
+
+    /// ✅ MEDIA
     imageUrl: {
       type: String,
       default: "",
     },
-    // ✅ Ratings
-    rating: { type: Number, default: 0 },
-    reviewCount: { type: Number, default: 0 },
 
-    // ✅ Provider link
+    images: [
+      {
+        type: String,
+      },
+    ],
+
+    /// ✅ TAGS / SEARCH
+    tags: [
+      {
+        type: String,
+      },
+    ],
+
+    /// ✅ PROVIDER RELATION
     provider: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: true,
     },
 
+    providerName: {
+      type: String,
+      default: "",
+    },
+
+    /// ✅ VISIBILITY FLAG
     isAvailable: {
       type: Boolean,
       default: true,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-const Service = mongoose.model("Service", serviceSchema);
-
-export default Service;
+export default mongoose.model("Service", serviceSchema);

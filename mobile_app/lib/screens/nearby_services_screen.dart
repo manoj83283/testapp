@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
+import 'service_detail_screen.dart';
+import 'booking_screen.dart';
+import 'chat_screen.dart';
 
 class NearbyServicesScreen extends StatefulWidget {
   final String categoryName;
@@ -12,409 +16,259 @@ class NearbyServicesScreen extends StatefulWidget {
   });
 
   @override
-  State<NearbyServicesScreen> createState() => _NearbyServicesScreenState();
+  State<NearbyServicesScreen> createState() =>
+      _NearbyServicesScreenState();
 }
 
-class _NearbyServicesScreenState extends State<NearbyServicesScreen> {
-  final TextEditingController searchController = TextEditingController();
+class _NearbyServicesScreenState
+    extends State<NearbyServicesScreen> {
+
+  final TextEditingController searchController =
+      TextEditingController();
 
   String searchQuery = "";
-  late Future<List<dynamic>> servicesFuture;
+  List<dynamic> services = [];
+  List<Map<String, dynamic>> cart = [];
+
+  String? currentUserId; // ✅ important
 
   @override
   void initState() {
     super.initState();
-    servicesFuture = ApiService.fetchServicesByCategory(widget.categoryKey);
+    loadUser();
+    loadServices();
   }
 
-  void refreshServices() {
+  /// ✅ LOAD USER ID
+  Future<void> loadUser() async {
+    final prefs = await SharedPreferences.getInstance();
     setState(() {
-      servicesFuture = ApiService.fetchServicesByCategory(widget.categoryKey);
+      currentUserId = prefs.getString("userId");
     });
   }
 
-  List<dynamic> filterServices(List<dynamic> services) {
-    if (searchQuery.trim().isEmpty) {
-      return services;
+  /// ✅ LOAD SERVICES
+  Future<void> loadServices() async {
+    try {
+      final data =
+          await ApiService.fetchServicesByCategory(widget.categoryKey);
+
+      setState(() {
+        services = data;
+      });
+    } catch (e) {
+      print("Error loading services: $e");
     }
+  }
+
+  /// ✅ REFRESH
+  void refreshServices() {
+    loadServices();
+  }
+
+  /// ✅ FILTER
+  List<dynamic> filterServices(List<dynamic> list) {
+    if (searchQuery.trim().isEmpty) return list;
 
     final query = searchQuery.toLowerCase().trim();
 
-    return services.where((service) {
-      final name = (service["name"] ?? "").toString().toLowerCase();
-      final providerName =
-          (service["providerName"] ?? "").toString().toLowerCase();
-      final serviceType =
-          (service["serviceType"] ?? "").toString().toLowerCase();
-      final location = (service["location"] ?? "").toString().toLowerCase();
-      final priceRange = (service["priceRange"] ?? "").toString().toLowerCase();
-
-      return name.contains(query) ||
-          providerName.contains(query) ||
-          serviceType.contains(query) ||
-          location.contains(query) ||
-          priceRange.contains(query);
+    return list.where((s) {
+      return (s["name"] ?? "").toLowerCase().contains(query) ||
+          (s["providerName"] ?? "")
+              .toLowerCase()
+              .contains(query) ||
+          (s["location"] ?? "").toLowerCase().contains(query);
     }).toList();
   }
 
-  void openChat(Map<String, dynamic> service) {
-    final providerName = service["providerName"] ?? service["name"] ?? "Provider";
+  /// ✅ ADD TO CART
+  void addToCart(Map<String, dynamic> service) {
+    setState(() => cart.add(service));
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Chat with $providerName coming soon"),
+      SnackBar(content: Text("${service["name"]} added")),
+    );
+  }
+
+  // ✅✅✅ FIXED CHAT FUNCTION (IMPORTANT)
+  Future<void> openChat(Map<String, dynamic> service) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      final userId = prefs.getString("userId");
+
+      if (userId == null || userId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("User not logged in")),
+        );
+        return;
+      }
+
+      /// ✅ HANDLE BOTH OBJECT & STRING
+      String providerId;
+
+      if (service["provider"] is Map) {
+        providerId = service["provider"]["_id"] ?? "";
+      } else {
+        providerId = service["provider"] ?? "";
+      }
+
+      if (providerId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Invalid provider data")),
+        );
+        return;
+      }
+
+      /// ✅ IMPORTANT: CONSISTENT ROOM ID (SORTED)
+      final sortedIds = [userId, providerId]..sort();
+      final roomId = "${sortedIds[0]}_${sortedIds[1]}";
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            roomId: roomId,
+            currentUserId: userId,
+            receiverId: providerId,
+          ),
+        ),
+      );
+    } catch (e) {
+      print("Chat Error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to open chat")),
+      );
+    }
+  }
+
+  /// ✅ DETAILS
+  void openDetails(Map<String, dynamic> service) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ServiceDetailScreen(service: service),
       ),
     );
   }
 
+  /// ✅ BOOK
   void bookService(Map<String, dynamic> service) {
-    final serviceName = service["name"] ?? "service";
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Booking $serviceName coming soon"),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BookingScreen(service: service),
       ),
     );
   }
 
-  @override
-  void dispose() {
-    searchController.dispose();
-    super.dispose();
-  }
   @override
   Widget build(BuildContext context) {
+    final filtered = filterServices(services);
+
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
+
       appBar: AppBar(
         title: Text(widget.categoryName),
-        centerTitle: true,
         actions: [
           IconButton(
-            tooltip: "Refresh",
             icon: const Icon(Icons.refresh),
             onPressed: refreshServices,
           ),
         ],
       ),
+
       body: Column(
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-            decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withOpacity(0.08),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(22),
-                bottomRight: Radius.circular(22),
+
+          /// ✅ SEARCH
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              controller: searchController,
+              onChanged: (value) {
+                setState(() {
+                  searchQuery = value;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: "Search services...",
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Nearby Services",
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  "Available providers for ${widget.categoryName}",
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade700,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: searchController,
-                  onChanged: (value) {
-                    setState(() {
-                      searchQuery = value;
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: "Search providers or services",
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              searchController.clear();
-                              setState(() {
-                                searchQuery = "";
-                              });
-                            },
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
+
+          /// ✅ LIST
           Expanded(
-            child: FutureBuilder<List<dynamic>>(
-              future: servicesFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
+            child: filtered.isEmpty
+                ? const Center(child: Text("No services found"))
+                : ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final service =
+                          Map<String, dynamic>.from(filtered[i]);
 
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        "Error loading services:\n${snapshot.error}",
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 15),
-                      ),
-                    ),
-                  );
-                }
+                      return Card(
+                        margin: const EdgeInsets.all(10),
+                        child: ListTile(
 
-                final allServices = snapshot.data ?? [];
-                final visibleServices = filterServices(allServices);
+                          onTap: () => openDetails(service),
 
-                if (visibleServices.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        searchQuery.trim().isEmpty
-                            ? "No service providers found for ${widget.categoryName}"
-                            : "No matching providers found",
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    ),
-                  );
-                }
-
-                return Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-                      child: Row(
-                        children: [
-                          const Text(
-                            "Service Providers",
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.grey[200],
+                            child: const Icon(Icons.store),
                           ),
-                          const Spacer(),
-                          Text(
-                            "${visibleServices.length} found",
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                        itemCount: visibleServices.length,
-                        itemBuilder: (context, index) {
-                          final service = Map<String, dynamic>.from(
-                            visibleServices[index] as Map,
-                          );
 
-                          return ServiceProviderCard(
-                            service: service,
-                            onChat: () => openChat(service),
-                            onBook: () => bookService(service),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
+                          title: Text(service["name"] ?? ""),
+
+                          subtitle: Text(
+                              "${service["providerName"] ?? ""}\n${service["location"] ?? ""}"),
+
+                          isThreeLine: true,
+
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                "₹${service["pricePerDay"] ?? 0}",
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+
+                              /// ✅ CHAT BUTTON
+                              GestureDetector(
+                                onTap: () => openChat(service),
+                                child: const Icon(
+                                  Icons.chat,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
-    );
-  }
-}
-class ServiceProviderCard extends StatelessWidget {
-  final Map<String, dynamic> service;
-  final VoidCallback onChat;
-  final VoidCallback onBook;
 
-  const ServiceProviderCard({
-    super.key,
-    required this.service,
-    required this.onChat,
-    required this.onBook,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final name = service["name"] ?? "Service";
-    final providerName = service["providerName"] ?? "Provider";
-    final serviceType = service["serviceType"] ?? "Event Service";
-    final priceRange = service["priceRange"] ?? "Price on request";
-    final location = service["location"] ?? "Location not available";
-    final rating = service["rating"] ?? 0;
-    final reviewCount = service["reviewCount"] ?? service["reviews"] ?? 0;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 14),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: 30,
-              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.12),
-              child: Icon(
-                Icons.storefront,
-                color: Theme.of(context).primaryColor,
-                size: 30,
-              ),
-            ),
-            const SizedBox(width: 14),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name.toString(),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-
-                  Text(
-                    providerName.toString(),
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-
-                  Text(
-                    serviceType.toString(),
-                    style: TextStyle(
-                      color: Colors.grey.shade800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on_outlined,
-                        size: 16,
-                        color: Colors.grey.shade600,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          location.toString(),
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-
-                  Text(
-                    priceRange.toString(),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.star,
-                        color: Colors.amber,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        rating.toString(),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        "($reviewCount reviews)",
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: onChat,
-                          icon: const Icon(
-                            Icons.chat_outlined,
-                            size: 18,
-                          ),
-                          label: const Text("Chat"),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: onBook,
-                          icon: const Icon(
-                            Icons.calendar_month,
-                            size: 18,
-                          ),
-                          label: const Text("Book"),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+      /// ✅ CART BUTTON
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Cart: ${cart.length}")),
+          );
+        },
+        child: const Icon(Icons.shopping_bag),
       ),
     );
   }
