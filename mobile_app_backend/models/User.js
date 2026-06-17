@@ -3,49 +3,123 @@ import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema(
   {
-    firstName: { 
-      type: String, 
+    /// ✅ BASIC INFO
+    firstName: {
+      type: String,
       required: true,
-      trim: true 
+      trim: true,
     },
 
-    lastName: { 
-      type: String, 
+    lastName: {
+      type: String,
       required: true,
-      trim: true 
+      trim: true,
     },
 
-    email: { 
-      type: String, 
-      required: true, 
+    email: {
+      type: String,
+      required: true,
       unique: true,
       lowercase: true,
-      trim: true 
+      trim: true,
     },
 
-    phone: { 
-      type: String, 
-      required: true 
-    },
-
-    password: { 
-      type: String, 
+    phone: {
+      type: String,
       required: true,
-      minlength: 6
     },
 
-    // ✅ optional but useful for frontend compatibility
+    password: {
+      type: String,
+      required: true,
+      minlength: 6,
+    },
+
+    /// ✅ ROLE SYSTEM (CUSTOMER / PROVIDER)
     role: {
       type: String,
       enum: ["user", "provider"],
-      default: "user"
-    }
+      default: "user",
+    },
+
+    /// ✅ ONLINE STATUS (REAL-TIME CHAT 🔥)
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
+
+    /// ✅ LOCATION PERMISSION
+    locationEnabled: {
+      type: Boolean,
+      default: true,
+    },
+
+    /// ✅ PROFILE IMAGE
+    profileImage: {
+      type: String,
+      default: "",
+    },
+
+    /// ✅ ADDRESS (LIKE SWIGGY)
+    address: {
+      type: String,
+      default: "",
+    },
+
+    /// ✅ GEO LOCATION (FUTURE READY)
+    location: {
+      type: {
+        type: String,
+        enum: ["Point"],
+      },
+      coordinates: {
+        type: [Number], // [lng, lat]
+      },
+    },
+
+    /// ✅ PROVIDER DETAILS (ONLY IF role = provider)
+    servicesOffered: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Service",
+      },
+    ],
+
+    experience: {
+      type: Number, // years
+      default: 0,
+    },
+
+    rating: {
+      type: Number,
+      default: 0,
+    },
+
+    totalReviews: {
+      type: Number,
+      default: 0,
+    },
+
+    /// ✅ WALLET SYSTEM 💰
+    walletBalance: {
+      type: Number,
+      default: 0,
+    },
+
+    /// ✅ NOTIFICATIONS
+    notificationsEnabled: {
+      type: Boolean,
+      default: true,
+    },
   },
   { timestamps: true }
 );
 
+/// ✅ GEO INDEX (IMPORTANT 🔥)
+userSchema.index({ location: "2dsphere" });
 
-// ✅ Hash password before saving
+
+/// ✅ HASH PASSWORD BEFORE SAVE
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
 
@@ -56,20 +130,19 @@ userSchema.pre("save", async function (next) {
 });
 
 
-// ✅ Compare password (for login)
+/// ✅ COMPARE PASSWORD (LOGIN)
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
 
-
-// ✅ Hide password in response (VERY IMPORTANT)
+/// ✅ REMOVE PASSWORD FROM RESPONSE
 userSchema.methods.toJSON = function () {
-  const userObj = this.toObject();
-  delete userObj.password;
-  return userObj;
+  const obj = this.toObject();
+  delete obj.password;
+  return obj;
 };
 
 
-const User = mongoose.model("User", userSchema);
-export default User;
+/// ✅ EXPORT MODEL
+export default mongoose.models.User || mongoose.model("User", userSchema);

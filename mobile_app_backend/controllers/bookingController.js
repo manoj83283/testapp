@@ -2,7 +2,7 @@ import Booking from "../models/booking.js";
 import Service from "../models/service.js";
 import { io } from "../server.js";
 
-/// ✅ CREATE BOOKING (FULL LOGIC + PRICING + PROVIDER + REALTIME)
+/// ✅ CREATE BOOKING (FULL LOGIC + REAL-TIME + ROOM)
 export const createBooking = async (req, res) => {
   try {
     const {
@@ -15,22 +15,25 @@ export const createBooking = async (req, res) => {
       paymentMethod = "COD",
     } = req.body;
 
-    /// ✅ GET SERVICE DETAILS
+    /// ✅ GET SERVICE
     const service = await Service.findById(serviceId).populate("provider");
 
     if (!service) {
       return res.status(404).json({ message: "Service not found" });
     }
 
-    /// ✅ CALCULATE PRICE
+    /// ✅ PRICE CALCULATION
     const pricePerHour = service.price || 0;
     const totalPrice = pricePerHour * hoursBooked;
+
+    /// ✅ CREATE CHAT ROOM (IMPORTANT 🔥)
+    const chatRoomId = `${req.user.id}_${service.provider._id}`;
 
     /// ✅ CREATE BOOKING
     const booking = await Booking.create({
       user: req.user.id,
       service: serviceId,
-      provider: service.provider._id, // 🔥 IMPORTANT
+      provider: service.provider._id,
       date,
       notes,
       address,
@@ -39,11 +42,12 @@ export const createBooking = async (req, res) => {
       pricePerHour,
       totalPrice,
       paymentMethod,
-      paymentStatus: paymentMethod === "COD" ? "pending" : "pending",
+      paymentStatus: "pending",
       status: "pending",
+      chatRoomId,
     });
 
-    /// ✅ POPULATE RESPONSE
+    /// ✅ POPULATE FULL DATA
     const populatedBooking = await Booking.findById(booking._id)
       .populate("user", "firstName lastName email")
       .populate({
@@ -54,8 +58,9 @@ export const createBooking = async (req, res) => {
         },
       });
 
-    /// ✅ REAL-TIME EVENT (NEW BOOKING)
-    io.emit("newBooking", populatedBooking);
+    /// ✅ 🔥 REAL-TIME EVENTS
+    io.emit("bookingUpdate", populatedBooking); // global
+    io.to(chatRoomId).emit("bookingUpdate", populatedBooking); // room
 
     res.status(201).json(populatedBooking);
 
@@ -71,7 +76,7 @@ export const getBookings = async (req, res) => {
   try {
     const bookings = await Booking.find({ user: req.user.id })
       .populate("service")
-      .sort({ createdAt: -1 }); // latest first
+      .sort({ createdAt: -1 });
 
     res.json(bookings);
 
@@ -82,7 +87,7 @@ export const getBookings = async (req, res) => {
 };
 
 
-/// ✅ GET PROVIDER BOOKINGS (FAST - NO FILTER LOOP 🔥)
+/// ✅ GET PROVIDER BOOKINGS
 export const getProviderBookings = async (req, res) => {
   try {
     const bookings = await Booking.find({ provider: req.user.id })
@@ -99,12 +104,12 @@ export const getProviderBookings = async (req, res) => {
 };
 
 
-/// ✅ UPDATE BOOKING STATUS (FULL FLOW + REALTIME)
+/// ✅ UPDATE BOOKING STATUS (ADVANCED FLOW)
 export const updateBookingStatus = async (req, res) => {
   try {
     const { status } = req.body;
 
-    const booking = await Booking.findById(req.params.id);
+    let booking = await Booking.findById(req.params.id);
 
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
@@ -113,7 +118,11 @@ export const updateBookingStatus = async (req, res) => {
     /// ✅ UPDATE STATUS
     booking.status = status;
 
-    /// ✅ AUTO TRACK TIMES
+    /// ✅ TIMELINE TRACKING
+    if (status === "accepted") {
+      booking.acceptedAt = new Date();
+    }
+
     if (status === "in_progress") {
       booking.startedAt = new Date();
     }
@@ -125,8 +134,16 @@ export const updateBookingStatus = async (req, res) => {
 
     await booking.save();
 
-    /// ✅ REAL-TIME UPDATE
+    /// ✅ RELOAD WITH DATA
+    booking = await Booking.findById(booking._id)
+      .populate("user", "firstName lastName email")
+      .populate("service");
+
+    /// ✅ 🔥 REAL-TIME EVENTS
     io.emit("bookingUpdate", booking);
+    if (booking.chatRoomId) {
+      io.to(booking.chatRoomId).emit("bookingUpdate", booking);
+    }
 
     res.json(booking);
 
@@ -137,24 +154,32 @@ export const updateBookingStatus = async (req, res) => {
 };
 
 
-/// ✅ CANCEL BOOKING (CUSTOMER SIDE)
+/// ✅ CANCEL BOOKING (CUSTOMER ONLY)
 export const cancelBooking = async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id);
+    let booking = await Booking.findById(req.params.id);
 
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    /// ✅ ONLY OWNER CAN CANCEL
+    /// ✅ SECURITY CHECK
     if (booking.user.toString() !== req.user.id) {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
     booking.status = "cancelled";
+    booking.cancelledAt = new Date();
+
     await booking.save();
 
+    booking = await Booking.findById(booking._id).populate("service");
+
+    /// ✅ 🔥 REAL-TIME UPDATE
     io.emit("bookingUpdate", booking);
+    if (booking.chatRoomId) {
+      io.to(booking.chatRoomId).emit("bookingUpdate", booking);
+    }
 
     res.json({ message: "Booking cancelled", booking });
 
@@ -165,7 +190,7 @@ export const cancelBooking = async (req, res) => {
 };
 
 
-/// ✅ ADD RATING AFTER COMPLETION ⭐
+/// ✅ RATE BOOKING (AFTER COMPLETION)
 export const rateBooking = async (req, res) => {
   try {
     const { rating, review } = req.body;
@@ -176,7 +201,7 @@ export const rateBooking = async (req, res) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    /// ✅ ALLOW ONLY AFTER COMPLETED
+    /// ✅ ONLY AFTER COMPLETION
     if (booking.status !== "completed") {
       return res.status(400).json({ message: "Complete booking first" });
     }

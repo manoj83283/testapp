@@ -7,6 +7,7 @@ const bookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
 
     /// ✅ SERVICE (WHAT BOOKED)
@@ -16,11 +17,11 @@ const bookingSchema = new mongoose.Schema(
       required: true,
     },
 
-    /// ✅ PROVIDER (VERY IMPORTANT 🔥)
-    /// Helps provider dashboard directly fetch bookings
+    /// ✅ PROVIDER (IMPORTANT 🔥)
     provider: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      index: true,
     },
 
     /// ✅ BOOKING DETAILS
@@ -31,30 +32,35 @@ const bookingSchema = new mongoose.Schema(
     notes: {
       type: String,
       trim: true,
+      default: "",
     },
 
-    /// ✅ ADDRESS DETAILS (LIKE SWIGGY)
+    /// ✅ ADDRESS (LIKE SWIGGY)
     address: {
       type: String,
       required: true,
+      trim: true,
     },
 
     location: {
-      type: String, // later upgrade → GeoJSON
+      type: String, // upgrade later to GeoJSON
     },
 
-    /// ✅ PRICING SYSTEM 💰
+    /// ✅ PRICING 💰
     hoursBooked: {
       type: Number,
       default: 1,
+      min: 1,
     },
 
     pricePerHour: {
       type: Number,
+      default: 0,
     },
 
     totalPrice: {
       type: Number,
+      default: 0,
     },
 
     /// ✅ PAYMENT SYSTEM
@@ -70,36 +76,73 @@ const bookingSchema = new mongoose.Schema(
       default: "pending",
     },
 
-    /// ✅ ORDER STATUS FLOW (IMPORTANT 🔥)
+    /// ✅ ORDER STATUS FLOW 🔥
     status: {
       type: String,
       enum: [
-        "pending",     // user placed
-        "accepted",    // provider accepted
-        "rejected",    // provider rejected
-        "in_progress", // work started
-        "completed",   // done
-        "cancelled",   // user cancelled
+        "pending",      // user placed
+        "accepted",     // provider accepted
+        "rejected",     // provider rejected
+        "in_progress",  // work started
+        "completed",    // done
+        "cancelled",    // user cancelled
       ],
       default: "pending",
+      index: true,
     },
 
-    /// ✅ TRACKING (FUTURE READY)
-    startedAt: Date,
-    completedAt: Date,
+    /// ✅ TRACKING (TIMELINE)
+    startedAt: {
+      type: Date,
+    },
 
-    /// ✅ RATINGS (POST COMPLETION 🔥)
+    completedAt: {
+      type: Date,
+    },
+
+    cancelledAt: {
+      type: Date,
+    },
+
+    /// ✅ RATING SYSTEM ⭐
     rating: {
       type: Number,
       min: 1,
       max: 5,
     },
 
-    review: String,
+    review: {
+      type: String,
+      trim: true,
+    },
+
+    /// ✅ CHAT ROOM (VERY IMPORTANT 🔥)
+    /// Store bookingId as roomId
+    chatRoomId: {
+      type: String,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-export default mongoose.model("Booking", bookingSchema);
+
+/// ✅ INDEXES (PERFORMANCE BOOST 🚀)
+bookingSchema.index({ user: 1, createdAt: -1 });
+bookingSchema.index({ provider: 1, status: 1 });
+bookingSchema.index({ service: 1 });
+
+
+/// ✅ AUTO SET CHAT ROOM ID (BEST PRACTICE)
+bookingSchema.pre("save", function (next) {
+  if (!this.chatRoomId) {
+    this.chatRoomId = this._id.toString();
+  }
+  next();
+});
+
+
+/// ✅ EXPORT
+const Booking = mongoose.model("Booking", bookingSchema);
+export default Booking;

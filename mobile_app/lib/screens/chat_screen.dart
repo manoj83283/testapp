@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../services/api_service.dart';
+import '../services/socket_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String roomId;
@@ -20,64 +20,56 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
 
-  late IO.Socket socket;
-
   List<Map<String, dynamic>> messages = [];
   final TextEditingController controller = TextEditingController();
   final ScrollController scrollController = ScrollController();
 
-  String? bookingStatus; // ✅ NEW
+  String? bookingStatus;
 
   @override
   void initState() {
     super.initState();
-    connectSocket();
+
+    /// ✅ CONNECT SOCKET
+    SocketService.connect();
+
+    /// ✅ JOIN ROOM
+    SocketService.joinRoom(widget.roomId);
+
+    /// ✅ LOAD OLD MESSAGES (API)
     loadMessages();
-  }
 
-  /// ✅ SOCKET CONNECT
-  void connectSocket() {
-    socket = IO.io(
-      "http://10.152.35.172:5000",
-      IO.OptionBuilder()
-          .setTransports(['websocket'])
-          .enableAutoConnect()
-          .build(),
-    );
-
-    socket.onConnect((_) {
-      print("✅ Connected");
-      socket.emit("joinRoom", widget.roomId);
-    });
-
-    /// ✅ RECEIVE CHAT MESSAGE
-    socket.on("receiveMessage", (data) {
+    /// ✅ REAL-TIME CHAT
+    SocketService.listenMessages((data) {
       final msg = Map<String, dynamic>.from(data);
 
-      setState(() => messages.add(msg));
+      setState(() {
+        messages.add(msg);
+      });
+
       scrollToBottom();
     });
 
-    /// ✅ ✅ REAL-TIME BOOKING UPDATE 🔥
-    socket.on("bookingUpdate", (data) {
-      print("✅ Booking Updated: $data");
+    /// ✅ REAL-TIME BOOKING STATUS
+    SocketService.listenBookingUpdate((data) {
+      if (data["chatRoomId"] == widget.roomId) {
+        setState(() {
+          bookingStatus = data["status"];
+        });
 
-      setState(() {
-        bookingStatus = data["status"];
-      });
-
-      /// ✅ USER FEEDBACK (LIKE SWIGGY)
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Booking ${data["status"]}"),
-          backgroundColor: Colors.blue,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+        /// ✅ USER FEEDBACK
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Booking ${data["status"]}"),
+            backgroundColor: Colors.blue,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     });
   }
 
-  /// ✅ LOAD OLD MESSAGES
+  /// ✅ LOAD CHAT HISTORY
   Future<void> loadMessages() async {
     try {
       final data = await ApiService.getMessages(widget.roomId);
@@ -91,7 +83,7 @@ class _ChatScreenState extends State<ChatScreen> {
       scrollToBottom();
 
     } catch (e) {
-      print("❌ Load error: $e");
+      print("❌ Load messages error: $e");
     }
   }
 
@@ -107,14 +99,20 @@ class _ChatScreenState extends State<ChatScreen> {
       "message": text,
     };
 
-    socket.emit("sendMessage", msg);
+    SocketService.sendMessage(
+      roomId: widget.roomId,
+      message: text,
+      senderId: widget.currentUserId,
+    );
 
+    /// ✅ INSTANT UI (OPTIMISTIC UPDATE)
     setState(() => messages.add(msg));
 
     controller.clear();
     scrollToBottom();
   }
 
+  /// ✅ AUTO SCROLL
   void scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (scrollController.hasClients) {
@@ -127,18 +125,17 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  /// ✅ STATUS COLOR (OPTIONAL UI)
+  /// ✅ STATUS COLOR UI
   Color getStatusColor(String status) {
     switch (status) {
       case "accepted":
         return Colors.green;
-      case "rejected":
-      case "cancelled":
-        return Colors.red;
       case "completed":
         return Colors.blue;
       case "in_progress":
         return Colors.purple;
+      case "cancelled":
+        return Colors.red;
       default:
         return Colors.orange;
     }
@@ -146,8 +143,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    socket.disconnect();
-    socket.dispose();
+    SocketService.removeListeners();
     controller.dispose();
     scrollController.dispose();
     super.dispose();
@@ -164,7 +160,7 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
 
-          /// ✅ ✅ BOOKING STATUS BANNER (NEW 🔥)
+          /// ✅ BOOKING STATUS BANNER
           if (bookingStatus != null)
             Container(
               width: double.infinity,
@@ -172,12 +168,12 @@ class _ChatScreenState extends State<ChatScreen> {
               color: getStatusColor(bookingStatus!),
               child: Text(
                 "Booking Status: ${bookingStatus!.toUpperCase()}",
-                style: const TextStyle(color: Colors.white),
                 textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white),
               ),
             ),
 
-          /// ✅ MESSAGES
+          /// ✅ CHAT LIST
           Expanded(
             child: ListView.builder(
               controller: scrollController,
@@ -198,8 +194,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     padding: const EdgeInsets.all(10),
 
                     decoration: BoxDecoration(
-                      color:
-                          isMe ? Colors.blue : Colors.grey[300],
+                      color: isMe
+                          ? Colors.blue
+                          : Colors.grey[300],
                       borderRadius: BorderRadius.circular(10),
                     ),
 
@@ -217,10 +214,9 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
 
-          /// ✅ INPUT BOX
+          /// ✅ INPUT
           Row(
             children: [
-
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(8),
@@ -233,13 +229,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
               ),
-
               IconButton(
                 icon: const Icon(Icons.send),
                 onPressed: sendMessage,
-              )
+              ),
             ],
-          )
+          ),
         ],
       ),
     );

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 
 class ApiService {
+
   static const Duration _timeout = Duration(seconds: 15);
 
   // ------------------------------------------------------------
@@ -37,12 +38,12 @@ class ApiService {
     } on TimeoutException {
       throw Exception("Request timeout - check internet");
     } catch (e) {
-      throw Exception(e.toString());
+      throw Exception("Network error: ${e.toString()}");
     }
   }
 
   // ------------------------------------------------------------
-  // ✅ TOKEN + USER
+  // ✅ TOKEN HANDLING
   // ------------------------------------------------------------
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -69,13 +70,13 @@ class ApiService {
 
     return {
       "Content-Type": "application/json",
-      if (token != null) "Authorization": "Bearer $token",
+      if (token != null && token.isNotEmpty)
+        "Authorization": "Bearer $token",
     };
   }
-
-  // ------------------------------------------------------------
-  // ✅ AUTH
-  // ------------------------------------------------------------
+// ------------------------------------------------------------
+// ✅ AUTH
+// ------------------------------------------------------------
   static Future<Map<String, dynamic>> login(Map data) async {
     final res = await _request(
       http.post(
@@ -84,48 +85,73 @@ class ApiService {
         body: jsonEncode(data),
       ),
     );
-
     if (res["token"] != null) await saveToken(res["token"]);
-    if (res["_id"] != null) await saveUserId(res["_id"]);
-
+    if (res["user"] != null && res["user"]["id"] != null) {
+      await saveUserId(res["user"]["id"]);
+    }
     return res;
   }
 
-  static Future<Map<String, dynamic>> signup(Map data) async {
+/// ✅ ✅ ✅ UPDATED SIGNUP (FINAL VERSION)
+  static Future<Map<String, dynamic>> signup({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String phone,
+    required String password,
+    required String role,
+    required String dob,
+    required String location,
+  }) async {
     final res = await _request(
       http.post(
         Uri.parse(ApiConfig.signupUrl),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode(data),
+        body: jsonEncode({
+          "firstName": firstName,
+          "lastName": lastName,
+          "email": email,
+          "phone": phone,
+          "password": password,
+          "role": role,
+          "dob": dob,               
+          "location": location,     
+        }),
       ),
     );
 
-    if (res["token"] != null) await saveToken(res["token"]);
-    if (res["_id"] != null) await saveUserId(res["_id"]);
-
+   /// SAVE SESSION
+    if (res["token"] != null) {
+      await saveToken(res["token"]);
+    }
+    if (res["user"] != null && res["user"]["id"] != null) {
+      await saveUserId(res["user"]["id"]);
+    }
     return res;
   }
 
+  /// ✅ GOOGLE LOGIN
   static Future<Map<String, dynamic>> googleLogin({
     required String email,
     required String name,
   }) async {
     final res = await _request(
       http.post(
-        Uri.parse("${ApiConfig.baseUrl}/api/auth/google"),
+        Uri.parse("${ApiConfig.baseUrl}/auth/google"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "email": email,
           "name": name,
-        }),
-      ),
-    );
-
+          }),
+        ),
+      );
     if (res["token"] != null) await saveToken(res["token"]);
-    if (res["_id"] != null) await saveUserId(res["_id"]);
-
+    if (res["user"] != null && res["user"]["id"] != null) {
+      await saveUserId(res["user"]["id"]);
+    }
     return res;
   }
+  
 
   // ------------------------------------------------------------
   // ✅ SERVICES
@@ -139,11 +165,7 @@ class ApiService {
 
   static Future<List<dynamic>> fetchServicesByCategory(String category) async {
     final res = await _request(
-      http.get(
-        Uri.parse(
-          "${ApiConfig.serviceUrl}?category=${category.toLowerCase()}",
-        ),
-      ),
+      http.get(Uri.parse("${ApiConfig.serviceUrl}?category=${category.toLowerCase()}")),
     );
     return res is List ? res : [];
   }
@@ -184,53 +206,20 @@ class ApiService {
     );
   }
 
-  static Future<List<dynamic>> searchServices(String text) async {
-    if (text.isEmpty) return [];
-
-    final res = await _request(
-      http.get(
-        Uri.parse(
-          "${ApiConfig.serviceUrl}?search=${Uri.encodeComponent(text)}",
-        ),
-      ),
-    );
-    return res is List ? res : [];
-  }
-
-  // ------------------------------------------------------------
-  // ✅ CHAT ✅ FIXED PATH
-  // ------------------------------------------------------------
-  static Future<Map<String, dynamic>> sendMessage(
-      String receiverId, String message) async {
+  static Future<Map<String, dynamic>> updateServiceStatus(String id, bool status) async {
     final headers = await _authHeaders();
 
     return await _request(
-      http.post(
-        Uri.parse("${ApiConfig.baseUrl}/api/chat"),
+      http.put(
+        Uri.parse("${ApiConfig.serviceUrl}/$id/status"),
         headers: headers,
-        body: jsonEncode({
-          "receiverId": receiverId,
-          "message": message,
-        }),
+        body: jsonEncode({"isActive": status}),
       ),
     );
-  }
-
-  static Future<List<dynamic>> getMessages(String userId) async {
-    final headers = await _authHeaders();
-
-    final res = await _request(
-      http.get(
-        Uri.parse("${ApiConfig.baseUrl}/api/chat/$userId"),
-        headers: headers,
-      ),
-    );
-
-    return res is List ? res : [];
   }
 
   // ------------------------------------------------------------
-  // ✅ BOOKINGS ✅ FINAL
+  // ✅ BOOKINGS
   // ------------------------------------------------------------
   static Future<Map<String, dynamic>> createBooking({
     required String serviceId,
@@ -258,6 +247,7 @@ class ApiService {
     );
   }
 
+  /// ✅ CUSTOMER BOOKINGS
   static Future<List<dynamic>> getBookings() async {
     final headers = await _authHeaders();
 
@@ -271,6 +261,7 @@ class ApiService {
     return res is List ? res : [];
   }
 
+  /// ✅ PROVIDER BOOKINGS
   static Future<List<dynamic>> getProviderBookings() async {
     final headers = await _authHeaders();
 
@@ -284,18 +275,6 @@ class ApiService {
     return res is List ? res : [];
   }
 
-  static Future<Map<String, dynamic>> cancelBooking(
-      String bookingId) async {
-    final headers = await _authHeaders();
-
-    return await _request(
-      http.put(
-        Uri.parse("${ApiConfig.bookingUrl}/$bookingId/cancel"),
-        headers: headers,
-      ),
-    );
-  }
-
   static Future<Map<String, dynamic>> updateBookingStatus({
     required String bookingId,
     required String status,
@@ -306,11 +285,52 @@ class ApiService {
       http.put(
         Uri.parse("${ApiConfig.bookingUrl}/$bookingId/status"),
         headers: headers,
+        body: jsonEncode({"status": status}),
+      ),
+    );
+  }
+
+  static Future<Map<String, dynamic>> cancelBooking(String bookingId) async {
+    final headers = await _authHeaders();
+
+    return await _request(
+      http.put(
+        Uri.parse("${ApiConfig.bookingUrl}/$bookingId/cancel"),
+        headers: headers,
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // ✅ CHAT
+  // ------------------------------------------------------------
+  static Future<Map<String, dynamic>> sendMessage(
+      String receiverId, String message) async {
+    final headers = await _authHeaders();
+
+    return await _request(
+      http.post(
+        Uri.parse("${ApiConfig.baseUrl}/chat"),
+        headers: headers,
         body: jsonEncode({
-          "status": status,
+          "receiverId": receiverId,
+          "message": message,
         }),
       ),
     );
+  }
+
+  static Future<List<dynamic>> getMessages(String roomId) async {
+    final headers = await _authHeaders();
+
+    final res = await _request(
+      http.get(
+        Uri.parse("${ApiConfig.baseUrl}/chat/$roomId"),
+        headers: headers,
+      ),
+    );
+
+    return res is List ? res : [];
   }
 
   // ------------------------------------------------------------

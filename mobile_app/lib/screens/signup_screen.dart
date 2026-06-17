@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:intl/intl.dart';
+
 import '../services/api_service.dart';
-import 'home_screen.dart';
-import 'provider_home_screen.dart';
 import 'login_screen.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -15,6 +15,7 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
+
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController firstCtrl = TextEditingController();
@@ -22,85 +23,113 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController emailCtrl = TextEditingController();
   final TextEditingController phoneCtrl = TextEditingController();
   final TextEditingController passCtrl = TextEditingController();
+  final TextEditingController locationCtrl = TextEditingController();
+  final TextEditingController dobCtrl = TextEditingController();
 
   bool isLoading = false;
 
+  DateTime? selectedDOB;
+
+  // ===========================================================
+  // ✅ DATE PICKER
+  // ===========================================================
+  Future<void> pickDate() async {
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(2000),
+      firstDate: DateTime(1950),
+      lastDate: DateTime.now(),
+    );
+
+    if (picked != null) {
+      setState(() {
+        selectedDOB = picked;
+        dobCtrl.text = DateFormat('yyyy-MM-dd').format(picked);
+      });
+    }
+  }
+
+  // ===========================================================
+  // ✅ AGE CHECK
+  // ===========================================================
+  bool is18Plus(DateTime dob) {
+    final today = DateTime.now();
+
+    int age = today.year - dob.year;
+
+    if (today.month < dob.month ||
+        (today.month == dob.month && today.day < dob.day)) {
+      age--;
+    }
+
+    return age >= 18;
+  }
+
+  // ===========================================================
+  // ✅ SIGNUP FIX (UPDATED)
+  // ===========================================================
   Future<void> handleSignup() async {
-    print("🟢 Sign‑Up button pressed");
 
     if (!_formKey.currentState!.validate()) return;
 
+    if (selectedDOB == null) {
+      showError("Date of Birth is required");
+      return;
+    }
+
+    if (!is18Plus(selectedDOB!)) {
+      showError("Must be 18+");
+      return;
+    }
+
     setState(() => isLoading = true);
 
-    final data = {
-      "firstName": firstCtrl.text.trim(),
-      "lastName": lastCtrl.text.trim(),
-      "email": emailCtrl.text.trim(),
-      "phone": phoneCtrl.text.trim(),
-      "password": passCtrl.text.trim(),
-      "role": widget.role, // ✅ FLAG SENT
-    };
-
     try {
-      final res = await ApiService.signup(data);
 
-      /// ✅ FIX: GET USER FIRST
+      final res = await ApiService.signup(
+        firstName: firstCtrl.text,
+        lastName: lastCtrl.text,
+        email: emailCtrl.text,
+        phone: phoneCtrl.text,
+        password: passCtrl.text,
+        role: widget.role,
+        dob: selectedDOB!.toIso8601String(), // ✅ IMPORTANT
+        location: locationCtrl.text,
+      );
+
       final user = res["user"];
 
       if (user == null) {
-        Fluttertoast.showToast(msg: "Invalid server response");
-        setState(() => isLoading = false);
+        Fluttertoast.showToast(msg: "Invalid response");
         return;
       }
 
-      /// ✅ SAFE ROLE EXTRACTION
-      final role =
-          (user["role"] ?? "").toString().toLowerCase().trim();
-
-      print("✅ Signup role: $role");
-
       Fluttertoast.showToast(msg: "✅ Signup successful");
 
-      /// ✅ ROLE-BASED NAVIGATION
-      if (role == "provider") {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const ProviderHomeScreen(),
-          ),
-        );
-      } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const HomeScreen(),
-          ),
-        );
-      }
+      if (!context.mounted) return;
+
+      /// ✅ REDIRECT TO LOGIN
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/login_user',
+        (route) => false,
+      );
 
     } catch (e) {
-      print("❌ Signup error: $e");
-
-      Fluttertoast.showToast(
-        msg: "Error: ${e.toString()}",
-      );
+      showError("Error: ${e.toString()}");
     } finally {
       setState(() => isLoading = false);
     }
   }
 
-  @override
-  void dispose() {
-    firstCtrl.dispose();
-    lastCtrl.dispose();
-    emailCtrl.dispose();
-    phoneCtrl.dispose();
-    passCtrl.dispose();
-    super.dispose();
+  // ===========================================================
+  void showError(String msg) {
+    Fluttertoast.showToast(msg: msg);
   }
 
   @override
   Widget build(BuildContext context) {
+
     final isProvider = widget.role == "provider";
 
     return Scaffold(
@@ -135,142 +164,70 @@ class _SignupScreenState extends State<SignupScreen> {
               key: _formKey,
 
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
 
-                  /// ✅ ROLE HEADER
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: isProvider
-                          ? Colors.green.withOpacity(0.1)
-                          : Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          isProvider ? Icons.store : Icons.person,
-                          color: isProvider ? Colors.green : Colors.blue,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          isProvider
-                              ? "Register as Service Provider"
-                              : "Register as Customer",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+                  /// ✅ HEADER
+                  Text(
+                    isProvider
+                        ? "Register as Service Provider"
+                        : "Register as Customer",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
                   ),
 
                   const SizedBox(height: 20),
 
-                  /// ✅ FIRST NAME
+                  buildField("First Name", firstCtrl),
+                  const SizedBox(height: 12),
+
+                  buildField("Last Name", lastCtrl),
+                  const SizedBox(height: 12),
+
+                  buildField("Email", emailCtrl, isEmail: true),
+                  const SizedBox(height: 12),
+
+                  buildField("Phone", phoneCtrl, isPhone: true),
+                  const SizedBox(height: 12),
+
+                  buildField("Password", passCtrl, isPassword: true),
+                  const SizedBox(height: 12),
+
+                  /// ✅ LOCATION
+                  buildField("Location", locationCtrl),
+                  const SizedBox(height: 12),
+
+                  /// ✅ DOB FIELD
                   TextFormField(
-                    controller: firstCtrl,
-                    decoration: InputDecoration(
-                      labelText: "First Name",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    validator: (v) => v!.isEmpty ? "Required" : null,
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  /// ✅ LAST NAME
-                  TextFormField(
-                    controller: lastCtrl,
-                    decoration: InputDecoration(
-                      labelText: "Last Name",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    validator: (v) => v!.isEmpty ? "Required" : null,
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  /// ✅ EMAIL
-                  TextFormField(
-                    controller: emailCtrl,
-                    decoration: InputDecoration(
-                      labelText: "Email",
-                      prefixIcon: const Icon(Icons.email),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                    controller: dobCtrl,
+                    readOnly: true,
+                    onTap: pickDate,
+                    decoration: const InputDecoration(
+                      labelText: "Date of Birth",
+                      suffixIcon: Icon(Icons.calendar_today),
+                      border: OutlineInputBorder(),
                     ),
                     validator: (v) =>
-                        v != null && v.contains("@")
-                            ? null
-                            : "Enter valid email",
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  /// ✅ PHONE
-                  TextFormField(
-                    controller: phoneCtrl,
-                    decoration: InputDecoration(
-                      labelText: "Phone",
-                      prefixIcon: const Icon(Icons.phone),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    validator: (v) =>
-                        v != null && v.length >= 10
-                            ? null
-                            : "Enter valid phone",
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  /// ✅ PASSWORD
-                  TextFormField(
-                    controller: passCtrl,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: "Password",
-                      prefixIcon: const Icon(Icons.lock),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    validator: (v) =>
-                        v != null && v.length >= 6
-                            ? null
-                            : "Min 6 characters",
+                        v == null || v.isEmpty ? "Required" : null,
                   ),
 
                   const SizedBox(height: 20),
 
-                  /// ✅ SIGNUP BUTTON
+                  /// ✅ BUTTON
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: isLoading ? null : handleSignup,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
                       child: isLoading
-                          ? const CircularProgressIndicator(
-                              color: Colors.white,
-                            )
+                          ? const CircularProgressIndicator(color: Colors.white)
                           : const Text("Sign Up"),
                     ),
                   ),
 
                   const SizedBox(height: 10),
 
-                  /// ✅ LOGIN NAVIGATION
+                  /// ✅ LOGIN NAV
                   TextButton(
                     onPressed: () {
                       Navigator.pushReplacement(
@@ -281,11 +238,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         ),
                       );
                     },
-                    child: Text(
-                      isProvider
-                          ? "Already a Provider? Login"
-                          : "Already have an account? Login",
-                    ),
+                    child: const Text("Already have an account? Login"),
                   ),
                 ],
               ),
@@ -293,6 +246,36 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // ===========================================================
+  Widget buildField(
+    String label,
+    TextEditingController controller, {
+    bool isPassword = false,
+    bool isEmail = false,
+    bool isPhone = false,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: isPassword,
+      keyboardType: isPhone
+          ? TextInputType.phone
+          : isEmail
+              ? TextInputType.emailAddress
+              : TextInputType.text,
+      decoration: InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(),
+      ),
+      validator: (v) {
+        if (v == null || v.isEmpty) return "Required";
+        if (isEmail && !v.contains("@")) return "Invalid email";
+        if (isPhone && v.length < 10) return "Invalid phone";
+        if (isPassword && v.length < 6) return "Min 6 characters";
+        return null;
+      },
     );
   }
 }

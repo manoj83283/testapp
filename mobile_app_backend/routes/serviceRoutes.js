@@ -1,4 +1,5 @@
 import express from "express";
+
 import {
   createService,
   getServices,
@@ -7,23 +8,66 @@ import {
   deleteService,
 } from "../controllers/serviceController.js";
 
-import { protect } from "../middleware/authMiddleware.js";
+import {
+  protect,
+  authorizeRoles,
+} from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-/// ✅ POST (ADD SERVICE)
-router.post("/", protect, createService);
+/// ✅ CREATE SERVICE (PROVIDER ONLY)
+router.post(
+  "/",
+  protect,
+  authorizeRoles("provider"),
+  createService
+);
 
-/// ✅ GET ALL
+/// ✅ GET ALL SERVICES (PUBLIC + FILTER SUPPORT)
 router.get("/", getServices);
 
-/// ✅ GET MY SERVICES
-router.get("/my", protect, getMyServices);
+/// ✅ GET MY SERVICES (PROVIDER DASHBOARD)
+router.get(
+  "/my",
+  protect,
+  authorizeRoles("provider"),
+  getMyServices
+);
 
-/// ✅ UPDATE
-router.put("/:id", protect, updateService);
+/// ✅ UPDATE SERVICE
+router.put(
+  "/:id",
+  protect,
+  authorizeRoles("provider"),
+  updateService
+);
 
-/// ✅ DELETE
-router.delete("/:id", protect, deleteService);
+/// ✅ DELETE SERVICE
+router.delete(
+  "/:id",
+  protect,
+  authorizeRoles("provider"),
+  deleteService
+);
+
+/// ✅ ✅ OPTIONAL: TOGGLE AVAILABILITY (GOOD UX 🔥)
+router.put(
+  "/:id/availability",
+  protect,
+  authorizeRoles("provider"),
+  async (req, res) => {
+    try {
+      const service = await Service.findByIdAndUpdate(
+        req.params.id,
+        { isAvailable: req.body.isAvailable },
+        { new: true }
+      );
+
+      res.json(service);
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
 
 export default router;

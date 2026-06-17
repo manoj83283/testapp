@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
 import 'wallet_screen.dart';
 import 'my_orders_screen.dart';
+import '../localization/app_localizations.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -44,21 +46,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  /// ✅ LOGOUT (PROPER FIX)
   Future<void> logout() async {
     await ApiService.logout();
 
+    if (!context.mounted) return;
+
     Navigator.pushNamedAndRemoveUntil(
       context,
-      "/login",
+      "/login_user",
       (route) => false,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Profile"),
+        title: Text(loc.translate("profile")), // ✅ FIXED
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -66,11 +73,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-      body: buildContent(),
+      body: buildContent(loc),
     );
   }
 
-  Widget buildContent() {
+  Widget buildContent(AppLocalizations loc) {
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -80,14 +87,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     if (user == null) {
-      return const Center(child: Text("No user data"));
+      return Center(child: Text(loc.translate("no_categories")));
     }
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
 
-        /// ✅ PROFILE HEADER (LIKE SWIGGY)
+        /// ✅ PROFILE HEADER
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -108,8 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Text(
                       "${user!["firstName"] ?? ""} ${user!["lastName"] ?? ""}",
                       style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold),
+                          fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     Text(user!["email"] ?? ""),
                   ],
@@ -129,7 +135,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            quickAction(Icons.shopping_bag, "Orders", () {
+            quickAction(Icons.shopping_bag,
+                loc.translate("orders"), () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -137,7 +144,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               );
             }),
-            quickAction(Icons.account_balance_wallet, "Wallet", () {
+            quickAction(Icons.account_balance_wallet,
+                loc.translate("wallet"), () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -175,7 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         const SizedBox(height: 20),
 
-        /// ✅ SUPPORT SECTION
+        /// ✅ SUPPORT
         sectionCard([
           buildTile(
             icon: Icons.help_outline,
@@ -201,7 +209,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           showDialog(
             context: context,
             builder: (_) => AlertDialog(
-              title: const Text("Refer & Earn"),
+              title: Text(loc.translate("services")),
               content: const Text("Invite friends & earn rewards!"),
               actions: [
                 TextButton(
@@ -216,7 +224,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 10),
 
         /// ✅ SETTINGS
-        buildOption(Icons.settings, "Settings", () {
+        buildOption(Icons.settings, loc.translate("settings"), () {
           Navigator.pushNamed(context, "/settings");
         }),
 
@@ -242,14 +250,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               backgroundColor: Colors.red,
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
-            child: const Text("Logout"),
+            child: Text(loc.translate("logout")),
           ),
         ),
       ],
     );
   }
 
-  /// ✅ QUICK ACTION BUTTON
+  /// ✅ QUICK ACTION
   Widget quickAction(IconData icon, String title, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -282,7 +290,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return const Divider(height: 1);
   }
 
-  /// ✅ LIST TILE
+  /// ✅ TILE
   Widget buildTile({
     required IconData icon,
     required String title,
@@ -297,8 +305,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// ✅ SIMPLE OPTION TILE
-  Widget buildOption(IconData icon, String title, VoidCallback onTap) {
+  /// ✅ OPTION TILE
+  Widget buildOption(
+      IconData icon, String title, VoidCallback onTap) {
     return Card(
       child: ListTile(
         leading: Icon(icon),

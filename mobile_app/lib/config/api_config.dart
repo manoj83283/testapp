@@ -13,6 +13,9 @@ class ApiConfig {
     } else if (Platform.isIOS) {
       // Running on iOS Simulator
       return "http://127.0.0.1:5000/api";
+    } else if (Platform.isIOS) {
+      // Running on iOS Simulator
+      return "http://192.168.1.40:5000/api";
     } else {
       // Running on Windows desktop / physical device
       return "http://10.152.35.172:5000/api";
@@ -27,6 +30,7 @@ class ApiConfig {
   static String get loginUrl => signinUrl;
 
   static String get serviceUrl => "$baseUrl/services";
+  //static const String serviceUrl = "$baseUrl/api/services";
   static String get bookingUrl => "$baseUrl/bookings";
   static String get profileUrl => "$baseUrl/auth/profile";
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../services/api_service.dart';
-import 'home_screen.dart';
-import 'provider_home_screen.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -24,6 +24,19 @@ class _LoginScreenState extends State<LoginScreen> {
   bool isLoading = false;
 
   // ===========================================================
+  // ✅ SAVE LOGIN SESSION
+  // ===========================================================
+  Future<void> saveUserSession(Map user, String token) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString("token", token);
+    await prefs.setString("role", user["role"] ?? "");
+    await prefs.setString("userId", user["_id"] ?? "");
+    await prefs.setString("name", user["name"] ?? "");
+    await prefs.setString("email", user["email"] ?? "");
+  }
+
+  // ===========================================================
   // ✅ EMAIL LOGIN
   // ===========================================================
   Future<void> login() async {
@@ -38,22 +51,25 @@ class _LoginScreenState extends State<LoginScreen> {
       });
 
       final user = res["user"];
+      final token = res["token"];
 
-      if (user == null) {
+      if (user == null || token == null) {
         Fluttertoast.showToast(msg: "Invalid response");
-        setState(() => isLoading = false);
         return;
       }
 
       final role = (user["role"] ?? "").toString().toLowerCase().trim();
 
+      /// ✅ ROLE VALIDATION
       if (role != widget.role) {
         Fluttertoast.showToast(
           msg: "⚠️ Please login as ${widget.role}",
         );
-        setState(() => isLoading = false);
         return;
       }
+
+      /// ✅ SAVE SESSION
+      await saveUserSession(user, token);
 
       Fluttertoast.showToast(msg: "✅ Login successful");
 
@@ -61,9 +77,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
     } catch (e) {
       Fluttertoast.showToast(msg: "Error: ${e.toString()}");
+    } finally {
+      setState(() => isLoading = false);
     }
-
-    setState(() => isLoading = false);
   }
 
   // ===========================================================
@@ -79,10 +95,10 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       final user = res["user"];
+      final token = res["token"];
 
-      if (user == null) {
+      if (user == null || token == null) {
         Fluttertoast.showToast(msg: "Invalid response");
-        setState(() => isLoading = false);
         return;
       }
 
@@ -92,9 +108,11 @@ class _LoginScreenState extends State<LoginScreen> {
         Fluttertoast.showToast(
           msg: "⚠️ Please login as ${widget.role}",
         );
-        setState(() => isLoading = false);
         return;
       }
+
+      /// ✅ SAVE SESSION
+      await saveUserSession(user, token);
 
       Fluttertoast.showToast(msg: "✅ Google login successful");
 
@@ -104,29 +122,34 @@ class _LoginScreenState extends State<LoginScreen> {
       Fluttertoast.showToast(
         msg: "Google Login Error: ${e.toString()}",
       );
+    } finally {
+      setState(() => isLoading = false);
     }
-
-    setState(() => isLoading = false);
   }
 
   // ===========================================================
   // ✅ NAVIGATION
   // ===========================================================
   void navigateByRole(String role) {
+
+    if (!context.mounted) return;
+
     if (role == "provider") {
-      Navigator.pushReplacement(
+
+      Navigator.pushNamedAndRemoveUntil(
         context,
-        MaterialPageRoute(
-          builder: (_) => const ProviderHomeScreen(),
-        ),
+        '/providerHome',
+        (route) => false,
       );
+
     } else {
-      Navigator.pushReplacement(
+
+      Navigator.pushNamedAndRemoveUntil(
         context,
-        MaterialPageRoute(
-          builder: (_) => const HomeScreen(),
-        ),
+        '/home',
+        (route) => false,
       );
+
     }
   }
 
@@ -169,9 +192,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 /// ✅ EMAIL
                 TextFormField(
                   controller: emailController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: "Email",
-                    border: OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.email),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                   validator: (v) =>
                       v != null && v.contains("@")
@@ -185,9 +211,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextFormField(
                   controller: passwordController,
                   obscureText: true,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: "Password",
-                    border: OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.lock),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                   validator: (v) =>
                       v != null && v.length >= 6
@@ -202,43 +231,43 @@ class _LoginScreenState extends State<LoginScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: isLoading ? null : login,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                     child: isLoading
-                        ? const CircularProgressIndicator(
-                            color: Colors.white,
-                          )
+                        ? const CircularProgressIndicator(color: Colors.white)
                         : const Text("Login"),
                   ),
                 ),
 
                 const SizedBox(height: 10),
 
-                /// ✅ GOOGLE LOGIN BUTTON
+                /// ✅ GOOGLE LOGIN
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.g_mobiledata),
+                    icon: const Icon(Icons.account_circle),
                     label: const Text("Continue with Google"),
-                    onPressed: isLoading
-                        ? null
-                        : handleGoogleLogin,
+                    onPressed: isLoading ? null : handleGoogleLogin,
                   ),
                 ),
 
                 const SizedBox(height: 10),
 
-                /// ✅ SIGNUP
+                /// ✅ SIGNUP NAVIGATION
                 TextButton(
                   onPressed: () {
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            SignupScreen(role: widget.role),
+                        builder: (_) => SignupScreen(role: widget.role),
                       ),
                     );
                   },
-                  child: const Text(
-                    "Don't have an account? Sign Up",
+                  child: Text(
+                    widget.role == "provider"
+                        ? "Don't have a provider account? Sign Up"
+                        : "Don't have an account? Sign Up",
                   ),
                 ),
               ],

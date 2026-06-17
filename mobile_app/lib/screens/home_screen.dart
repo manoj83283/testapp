@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'nearby_services_screen.dart';
+import '../widgets/language_selector.dart';
+import '../localization/app_localizations.dart'; 
+import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -44,9 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   List<Map<String, dynamic>> get filteredCategories {
-    if (searchQuery.trim().isEmpty) {
-      return eventCategories;
-    }
+    if (searchQuery.trim().isEmpty) return eventCategories;
 
     final query = searchQuery.toLowerCase();
 
@@ -69,22 +72,68 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
-  void dispose() {
-    searchController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final categories = filteredCategories;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
 
+      // ✅ ✅ ✅ DRAWER WITH FIXES
+      drawer: Drawer(
+        child: ListView(
+          children: [
+            DrawerHeader(
+              child: Text(
+                AppLocalizations.of(context).translate("customer_panel"),
+                style: const TextStyle(fontSize: 18),
+              ),
+            ),
+
+            /// ✅ LANGUAGE SWITCHER
+            const LanguageSelector(),
+
+            /// ✅ SETTINGS
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: Text(
+                AppLocalizations.of(context).translate("settings"),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, "/settings");
+              },
+            ),
+
+            /// ✅ ✅ ✅ FINAL LOGOUT FIX
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: Text(
+                AppLocalizations.of(context).translate("logout"),
+              ),
+              onTap: () async {
+                final prefs = await SharedPreferences.getInstance();
+
+                await prefs.remove("token");
+                await prefs.remove("role");
+
+                if (!context.mounted) return;
+
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login_user', // ✅ ROUTE BASED NAVIGATION
+                  (route) => false,
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+
       /// ✅ APPBAR
       appBar: AppBar(
         title: const Text("EventEase"),
         centerTitle: true,
+
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none),
@@ -124,26 +173,26 @@ class _HomeScreenState extends State<HomeScreen> {
       /// ✅ BODY
       body: Column(
         children: [
-
-          /// ✅ LOCATION + SEARCH ROW 🔥
+          /// ✅ LOCATION + SEARCH
           Container(
             padding: const EdgeInsets.all(16),
             color: Colors.white,
             child: Column(
               children: [
-
                 Row(
                   children: [
                     const Icon(Icons.location_on, color: Colors.orange),
-
                     const SizedBox(width: 8),
 
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text("Deliver to"),
+                        children: [
                           Text(
+                            AppLocalizations.of(context)
+                                .translate("deliver_to"),
+                          ),
+                          const Text(
                             "Hyderabad - Kondapur",
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
@@ -154,7 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     IconButton(
                       icon: const Icon(Icons.search),
                       onPressed: () {
-                        FocusScope.of(context).requestFocus(FocusNode());
+                        FocusScope.of(context).unfocus();
                       },
                     )
                   ],
@@ -171,7 +220,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     });
                   },
                   decoration: InputDecoration(
-                    hintText: "Search events or services",
+                    hintText: AppLocalizations.of(context)
+                        .translate("search_hint"),
                     prefixIcon: const Icon(Icons.search),
                     filled: true,
                     fillColor: Colors.grey.shade100,
@@ -185,23 +235,21 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          /// ✅ TITLE ROW
+          /// ✅ TITLE
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
             child: Row(
               children: [
-                const Text(
-                  "Event Categories",
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context)
+                      .translate("event_categories"),
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const Spacer(),
-                Text(
-                  "${categories.length} found",
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
+                Text("${categories.length}"),
               ],
             ),
           ),
@@ -209,7 +257,12 @@ class _HomeScreenState extends State<HomeScreen> {
           /// ✅ GRID
           Expanded(
             child: categories.isEmpty
-                ? const Center(child: Text("No categories found"))
+                ? Center(
+                    child: Text(
+                      AppLocalizations.of(context)
+                          .translate("no_categories"),
+                    ),
+                  )
                 : GridView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: categories.length,
@@ -234,7 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 8,
                               ),
                             ],
