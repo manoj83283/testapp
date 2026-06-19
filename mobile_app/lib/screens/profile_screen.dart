@@ -165,7 +165,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           buildTile(
             icon: Icons.location_on,
             title: "My Address Book",
-            onTap: () {},
+            onTap: () {
+              Navigator.pushNamed(context, "/address");
+            },
           ),
           buildDivider(),
           buildTile(

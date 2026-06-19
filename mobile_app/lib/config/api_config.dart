@@ -33,4 +33,5 @@ class ApiConfig {
   //static const String serviceUrl = "$baseUrl/api/services";
   static String get bookingUrl => "$baseUrl/bookings";
   static String get profileUrl => "$baseUrl/auth/profile";
+  static String get authUrl => "$baseUrl/auth";
 }

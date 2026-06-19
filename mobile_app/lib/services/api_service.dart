@@ -5,12 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 
 class ApiService {
-
   static const Duration _timeout = Duration(seconds: 15);
 
-  // ------------------------------------------------------------
+  // =============================================================
   // ✅ RESPONSE HANDLER
-  // ------------------------------------------------------------
+  // =============================================================
   static dynamic _handleResponse(http.Response response) {
     final body = response.body.trim();
 
@@ -28,23 +27,24 @@ class ApiService {
     }
   }
 
-  // ------------------------------------------------------------
+  // =============================================================
   // ✅ REQUEST WRAPPER
-  // ------------------------------------------------------------
-  static Future<dynamic> _request(Future<http.Response> request) async {
+  // =============================================================
+  static Future<dynamic> _request(
+      Future<http.Response> request) async {
     try {
       final response = await request.timeout(_timeout);
       return _handleResponse(response);
     } on TimeoutException {
-      throw Exception("Request timeout - check internet");
+      throw Exception("Request timeout");
     } catch (e) {
       throw Exception("Network error: ${e.toString()}");
     }
   }
 
-  // ------------------------------------------------------------
-  // ✅ TOKEN HANDLING
-  // ------------------------------------------------------------
+  // =============================================================
+  // ✅ TOKEN
+  // =============================================================
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString("token");
@@ -60,11 +60,6 @@ class ApiService {
     return prefs.getString("userId");
   }
 
-  static Future<void> saveUserId(String id) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString("userId", id);
-  }
-
   static Future<Map<String, String>> _authHeaders() async {
     final token = await getToken();
 
@@ -74,9 +69,10 @@ class ApiService {
         "Authorization": "Bearer $token",
     };
   }
-// ------------------------------------------------------------
-// ✅ AUTH
-// ------------------------------------------------------------
+
+  // =============================================================
+  // ✅ AUTH
+  // =============================================================
   static Future<Map<String, dynamic>> login(Map data) async {
     final res = await _request(
       http.post(
@@ -85,52 +81,47 @@ class ApiService {
         body: jsonEncode(data),
       ),
     );
+
     if (res["token"] != null) await saveToken(res["token"]);
-    if (res["user"] != null && res["user"]["id"] != null) {
-      await saveUserId(res["user"]["id"]);
-    }
+
     return res;
   }
 
-/// ✅ ✅ ✅ UPDATED SIGNUP (FINAL VERSION)
   static Future<Map<String, dynamic>> signup({
     required String firstName,
     required String lastName,
     required String email,
     required String phone,
-    required String password,
-    required String role,
-    required String dob,
     required String location,
+    required String dob,
+    required String role,
+    String? shopName,
+    String? password,
   }) async {
+
     final res = await _request(
       http.post(
-        Uri.parse(ApiConfig.signupUrl),
+        Uri.parse("${ApiConfig.authUrl}/signup"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "firstName": firstName,
           "lastName": lastName,
           "email": email,
           "phone": phone,
-          "password": password,
+          "location": location,
+          "dob": dob,
           "role": role,
-          "dob": dob,               
-          "location": location,     
+          "shopName": shopName ?? "",
+          if (password != null) "password": password,
         }),
       ),
     );
 
-   /// SAVE SESSION
-    if (res["token"] != null) {
-      await saveToken(res["token"]);
-    }
-    if (res["user"] != null && res["user"]["id"] != null) {
-      await saveUserId(res["user"]["id"]);
-    }
+    if (res["token"] != null) await saveToken(res["token"]);
+
     return res;
   }
 
-  /// ✅ GOOGLE LOGIN
   static Future<Map<String, dynamic>> googleLogin({
     required String email,
     required String name,
@@ -142,30 +133,29 @@ class ApiService {
         body: jsonEncode({
           "email": email,
           "name": name,
-          }),
-        ),
-      );
+        }),
+      ),
+    );
+
     if (res["token"] != null) await saveToken(res["token"]);
-    if (res["user"] != null && res["user"]["id"] != null) {
-      await saveUserId(res["user"]["id"]);
-    }
+
     return res;
   }
-  
 
-  // ------------------------------------------------------------
+  // =============================================================
   // ✅ SERVICES
-  // ------------------------------------------------------------
-  static Future<List<dynamic>> fetchServices() async {
+  // =============================================================
+  static Future<List> fetchServices() async {
     final res = await _request(
       http.get(Uri.parse(ApiConfig.serviceUrl)),
     );
     return res is List ? res : [];
   }
 
-  static Future<List<dynamic>> fetchServicesByCategory(String category) async {
+  static Future<List> fetchServicesByCategory(String category) async {
     final res = await _request(
-      http.get(Uri.parse("${ApiConfig.serviceUrl}?category=${category.toLowerCase()}")),
+      http.get(Uri.parse(
+        "${ApiConfig.serviceUrl}?category=${category.toLowerCase()}")),
     );
     return res is List ? res : [];
   }
@@ -182,7 +172,7 @@ class ApiService {
     );
   }
 
-  static Future<List<dynamic>> getMyServices() async {
+  static Future<List> getMyServices() async {
     final headers = await _authHeaders();
 
     final res = await _request(
@@ -206,7 +196,8 @@ class ApiService {
     );
   }
 
-  static Future<Map<String, dynamic>> updateServiceStatus(String id, bool status) async {
+  static Future<Map<String, dynamic>> updateServiceStatus(
+      String id, bool status) async {
     final headers = await _authHeaders();
 
     return await _request(
@@ -218,17 +209,18 @@ class ApiService {
     );
   }
 
-  // ------------------------------------------------------------
+  // =============================================================
   // ✅ BOOKINGS
-  // ------------------------------------------------------------
+  // =============================================================
   static Future<Map<String, dynamic>> createBooking({
     required String serviceId,
     required DateTime date,
-    String? notes,
-    String paymentMethod = "COD",
-    String address = "",
-    String location = "",
+    required String notes,
+    required String paymentMethod,
+    required String address,
+    required String location,
   }) async {
+
     final headers = await _authHeaders();
 
     return await _request(
@@ -238,7 +230,7 @@ class ApiService {
         body: jsonEncode({
           "serviceId": serviceId,
           "date": date.toIso8601String(),
-          "notes": notes ?? "",
+          "notes": notes,
           "paymentMethod": paymentMethod,
           "address": address,
           "location": location,
@@ -247,22 +239,17 @@ class ApiService {
     );
   }
 
-  /// ✅ CUSTOMER BOOKINGS
-  static Future<List<dynamic>> getBookings() async {
+  static Future<List> getBookings() async {
     final headers = await _authHeaders();
 
     final res = await _request(
-      http.get(
-        Uri.parse(ApiConfig.bookingUrl),
-        headers: headers,
-      ),
+      http.get(Uri.parse(ApiConfig.bookingUrl), headers: headers),
     );
 
     return res is List ? res : [];
   }
 
-  /// ✅ PROVIDER BOOKINGS
-  static Future<List<dynamic>> getProviderBookings() async {
+  static Future<List> getProviderBookings() async {
     final headers = await _authHeaders();
 
     final res = await _request(
@@ -301,11 +288,27 @@ class ApiService {
     );
   }
 
-  // ------------------------------------------------------------
+  // =============================================================
+  // ✅ ADDRESS
+  // =============================================================
+  static Future addAddress(Map data) async {
+    final headers = await _authHeaders();
+
+    return await _request(
+      http.post(
+        Uri.parse("${ApiConfig.baseUrl}/address"),
+        headers: headers,
+        body: jsonEncode(data),
+      ),
+    );
+  }
+
+  // =============================================================
   // ✅ CHAT
-  // ------------------------------------------------------------
+  // =============================================================
   static Future<Map<String, dynamic>> sendMessage(
       String receiverId, String message) async {
+
     final headers = await _authHeaders();
 
     return await _request(
@@ -320,7 +323,7 @@ class ApiService {
     );
   }
 
-  static Future<List<dynamic>> getMessages(String roomId) async {
+  static Future<List> getMessages(String roomId) async {
     final headers = await _authHeaders();
 
     final res = await _request(
@@ -333,9 +336,9 @@ class ApiService {
     return res is List ? res : [];
   }
 
-  // ------------------------------------------------------------
+  // =============================================================
   // ✅ PROFILE
-  // ------------------------------------------------------------
+  // =============================================================
   static Future<Map<String, dynamic>> getProfile() async {
     final headers = await _authHeaders();
 
@@ -347,9 +350,9 @@ class ApiService {
     );
   }
 
-  // ------------------------------------------------------------
+  // =============================================================
   // ✅ LOGOUT
-  // ------------------------------------------------------------
+  // =============================================================
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();

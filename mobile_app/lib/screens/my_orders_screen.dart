@@ -14,6 +14,8 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
   List bookings = [];
   bool isLoading = true;
 
+  final ScrollController _scrollController = ScrollController(); // ✅ NEW
+
   @override
   void initState() {
     super.initState();
@@ -26,8 +28,19 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
       final data = await ApiService.getBookings();
 
       setState(() {
-        bookings = data;
+        bookings = data.reversed.toList(); // ✅ LATEST FIRST
         isLoading = false;
+      });
+
+      /// ✅ AUTO SCROLL TO TOP
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOut,
+          );
+        }
       });
 
     } catch (e) {
@@ -40,22 +53,25 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
   }
 
   /// ✅ OPEN CHAT
-  void openChat(Map<String, dynamic> booking) {
-    final service = booking["service"];
+  Future<void> openChat(Map<String, dynamic> booking) async {
+    final service = booking["service"] ?? {};
+    final currentUserId = await ApiService.getUserId();
 
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ChatScreen(
-          roomId: service["provider"],
-          currentUserId: service["provider"], // temp fix
-          receiverId: service["provider"],
+          roomId: booking["_id"],
+          currentUserId: currentUserId ?? "",
+          receiverId: service["provider"]?["_id"] ??
+                      service["provider"] ??
+                      "",
         ),
       ),
     );
   }
 
-  /// ✅ STATUS COLOR SYSTEM 🔥
+  /// ✅ STATUS COLOR
   Color getStatusColor(String status) {
     switch (status) {
       case "accepted":
@@ -68,7 +84,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
       case "in_progress":
         return Colors.purple;
       default:
-        return Colors.orange; // pending
+        return Colors.orange;
     }
   }
 
@@ -87,17 +103,36 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
               ? const Center(child: Text("No Orders Yet"))
 
               : ListView.builder(
+                  controller: _scrollController, // ✅ CONNECTED
                   padding: const EdgeInsets.all(10),
                   itemCount: bookings.length,
+
                   itemBuilder: (context, i) {
 
                     final b = bookings[i];
                     final service = b["service"] ?? {};
+                    final status = b["status"] ?? "pending";
 
-                    return Card(
+                    final isLatest = i == 0; // ✅ LATEST IDENTIFY
+
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+
                       margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(
+
+                      decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
+
+                        color: isLatest
+                            ? Colors.green.withOpacity(0.08)
+                            : Colors.white,
+
+                        border: Border.all(
+                          color: isLatest
+                              ? Colors.green
+                              : Colors.grey.shade300,
+                          width: isLatest ? 2 : 1,
+                        ),
                       ),
 
                       child: Padding(
@@ -107,20 +142,46 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
 
-                            /// ✅ SERVICE NAME
-                            Text(
-                              service["name"] ?? "Service",
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            /// ✅ SERVICE NAME + BADGE
+                            Row(
+                              children: [
+
+                                Expanded(
+                                  child: Text(
+                                    service["name"] ?? "Service",
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+
+                                if (isLatest)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+
+                                    decoration: BoxDecoration(
+                                      color: Colors.green,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+
+                                    child: const Text(
+                                      "Latest",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
 
                             const SizedBox(height: 5),
 
                             /// ✅ PROVIDER
                             Text(
-                              "Provider: ${service["providerName"] ?? ""}",
+                              "Provider: ${service["provider"]?["firstName"] ?? service["providerName"] ?? ""}",
                             ),
 
                             const SizedBox(height: 5),
@@ -132,27 +193,23 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
 
                             const SizedBox(height: 8),
 
-                            /// ✅ ✅ UPDATED STATUS UI 🔥
+                            /// ✅ STATUS BADGE
                             Row(
                               children: [
-
                                 const Text("Status: "),
                                 const SizedBox(width: 6),
 
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 5,
-                                  ),
+                                      horizontal: 10, vertical: 5),
+
                                   decoration: BoxDecoration(
-                                    color: getStatusColor(
-                                      b["status"] ?? "pending",
-                                    ),
+                                    color: getStatusColor(status),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
+
                                   child: Text(
-                                    (b["status"] ?? "pending")
-                                        .toUpperCase(),
+                                    status.toUpperCase(),
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
@@ -169,13 +226,15 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                             if (b["address"] != null)
                               Text("Address: ${b["address"]}"),
 
+                            /// ✅ PRICE
+                            if (b["totalPrice"] != null)
+                              Text("₹ ${b["totalPrice"]}"),
+
                             const SizedBox(height: 12),
 
-                            /// ✅ ACTIONS
+                            /// ✅ ACTION BUTTONS
                             Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
-
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
 
                                 /// ✅ CHAT
@@ -185,21 +244,19 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                                   onPressed: () => openChat(b),
                                 ),
 
-                                /// ✅ CANCEL (ONLY IF ALLOWED)
-                                if (b["status"] == "pending" ||
-                                    b["status"] == "accepted")
+                                /// ✅ CANCEL
+                                if (status == "pending" ||
+                                    status == "accepted")
                                   ElevatedButton(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.red,
                                     ),
+
                                     onPressed: () async {
-
-                                      await ApiService.cancelBooking(
-                                        b["_id"],
-                                      );
-
+                                      await ApiService.cancelBooking(b["_id"]);
                                       loadBookings();
                                     },
+
                                     child: const Text("Cancel"),
                                   ),
                               ],

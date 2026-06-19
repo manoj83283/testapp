@@ -1,144 +1,23 @@
 import User from "../models/user.js";
 import jwt from "jsonwebtoken";
 
-/// ✅ GENERATE TOKEN
-const generateToken = (id) => {
+// ================= TOKEN =================
+const generateToken = (user) => {
   return jwt.sign(
-    { id },
-    process.env.JWT_SECRET || "secretkey",
+    {
+      id: user._id,
+      role: user.role,
+    },
+    process.env.JWT_SECRET || "secret",
     { expiresIn: "7d" }
   );
 };
 
 // =======================================================
-// ✅ ✅ REGISTER USER (UPDATED ✅)
-// =======================================================
-export const registerUser = async (req, res) => {
-  try {
-    const { name, email, phone, location, dob, shopName } = req.body;
-
-    /// ✅ REQUIRED VALIDATION
-    if (!name || !email || !phone || !location || !dob) {
-      return res.status(400).json({
-        msg: "All required fields must be filled",
-      });
-    }
-
-    /// ✅ CLEAN DATA
-    const cleanName = name.trim();
-    const cleanEmail = email.toLowerCase().trim();
-    const cleanPhone = phone.trim();
-
-    /// ✅ AGE VALIDATION (18+)
-    const birthDate = new Date(dob);
-    const today = new Date();
-
-    let age = today.getFullYear() - birthDate.getFullYear();
-
-    if (
-      today.getMonth() < birthDate.getMonth() ||
-      (today.getMonth() === birthDate.getMonth() &&
-        today.getDate() < birthDate.getDate())
-    ) {
-      age--;
-    }
-
-    if (age < 18) {
-      return res.status(400).json({
-        msg: "You must be at least 18 years old",
-      });
-    }
-
-    /// ✅ CHECK EXISTING USER
-    const userExists = await User.findOne({ email: cleanEmail });
-
-    if (userExists) {
-      return res.status(400).json({
-        msg: "User already exists",
-      });
-    }
-
-    /// ✅ CREATE USER
-    const user = await User.create({
-      name: cleanName,
-      email: cleanEmail,
-      phone: cleanPhone,
-      location,
-      dob,
-      shopName: shopName || "",
-    });
-
-    return res.status(201).json({
-      message: "✅ User registered successfully",
-      user,
-    });
-
-  } catch (error) {
-    console.error("❌ Register error:", error);
-
-    res.status(500).json({
-      msg: error.message,
-    });
-  }
-};
-
-// =======================================================
-// ✅ GOOGLE LOGIN
-// =======================================================
-export const googleLogin = async (req, res) => {
-  try {
-    const { email, name } = req.body;
-
-    if (!email || !name) {
-      return res.status(400).json({
-        message: "Email and name are required",
-      });
-    }
-
-    let user = await User.findOne({ email });
-
-    /// ✅ CREATE IF NOT EXISTS
-    if (!user) {
-      const [firstName, ...rest] = name.split(" ");
-      const lastName = rest.join(" ") || "";
-
-      user = await User.create({
-        firstName,
-        lastName,
-        email: email.toLowerCase().trim(),
-        phone: "0000000000",
-        password: "google_auth",
-        role: "user",
-      });
-    }
-
-    return res.status(200).json({
-      message: "✅ Google login successful",
-      token: generateToken(user._id),
-      user: {
-        id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role,
-      },
-    });
-
-  } catch (err) {
-    console.error("❌ Google login error:", err);
-
-    res.status(500).json({
-      message: err.message,
-    });
-  }
-};
-
-// =======================================================
-// ✅ SIGNUP (MAIN API)
+// ✅ ✅ ✅ SIGNUP (FINAL CLEAN VERSION)
 // =======================================================
 export const signup = async (req, res) => {
   try {
-    console.log("📦 Signup req.body:", req.body);
 
     let {
       firstName,
@@ -149,12 +28,22 @@ export const signup = async (req, res) => {
       role,
       dob,
       location,
+      shopName,
     } = req.body;
 
     /// ✅ VALIDATION
-    if (!firstName || !lastName || !email || !phone || !password || !dob || !location) {
+    if (
+      !firstName ||
+      !lastName ||
+      !email ||
+      !phone ||
+      !password ||
+      !dob ||
+      !location ||
+      !role
+    ) {
       return res.status(400).json({
-        message: "All fields are required",
+        msg: "All fields are required",
       });
     }
 
@@ -180,20 +69,20 @@ export const signup = async (req, res) => {
 
     if (age < 18) {
       return res.status(400).json({
-        message: "You must be at least 18 years old",
+        msg: "You must be at least 18 years old",
       });
     }
 
-    /// ✅ EXISTS CHECK
+    /// ✅ CHECK EXISTING USER
     const userExists = await User.findOne({ email });
 
     if (userExists) {
       return res.status(400).json({
-        message: "User already exists",
+        msg: "User already exists",
       });
     }
 
-    /// ✅ CREATE USER
+    /// ✅ CREATE USER (FIXED ✅)
     const user = await User.create({
       firstName,
       lastName,
@@ -203,28 +92,23 @@ export const signup = async (req, res) => {
       dob,
       location,
       role: role === "provider" ? "provider" : "user",
+      shopName: shopName || "",
     });
 
-    const token = generateToken(user._id);
+    /// ✅ TOKEN
+    const token = generateToken(user);
 
     return res.status(201).json({
-      message: "✅ User registered successfully",
+      message: "Signup successful",
       token,
-      user: {
-        id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-      },
+      user,
     });
 
   } catch (error) {
     console.error("❌ Signup error:", error);
 
     res.status(500).json({
-      message: "Server error during signup",
+      msg: "Server error",
       error: error.message,
     });
   }
@@ -235,11 +119,12 @@ export const signup = async (req, res) => {
 // =======================================================
 export const signin = async (req, res) => {
   try {
+
     let { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
-        message: "Email and password are required",
+        msg: "Email and password required",
       });
     }
 
@@ -247,47 +132,31 @@ export const signin = async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    if (!user) {
+    if (!user || !(await user.matchPassword(password))) {
       return res.status(400).json({
-        message: "Invalid email or password",
+        msg: "Invalid credentials",
       });
     }
 
-    const isMatch = await user.matchPassword(password);
+    const token = generateToken(user);
 
-    if (!isMatch) {
-      return res.status(400).json({
-        message: "Invalid email or password",
-      });
-    }
-
-    const token = generateToken(user._id);
-
-    return res.status(200).json({
-      message: "✅ Login successful",
+    res.status(200).json({
+      message: "Login successful",
       token,
-      user: {
-        id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-      },
+      user,
     });
 
   } catch (error) {
     console.error("❌ Login error:", error);
 
     res.status(500).json({
-      message: "Server error during login",
-      error: error.message,
+      msg: error.message,
     });
   }
 };
 
 // =======================================================
-// ✅ GET PROFILE
+// ✅ PROFILE
 // =======================================================
 export const getProfile = async (req, res) => {
   try {
@@ -296,8 +165,7 @@ export const getProfile = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({
-      message: "Failed to load profile",
-      error: error.message,
+      msg: error.message,
     });
   }
 };

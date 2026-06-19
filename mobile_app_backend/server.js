@@ -12,6 +12,7 @@ import chatRoutes from "./routes/chatRoutes.js";
 import serviceRoutes from "./routes/serviceRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
+import addressRoutes from "./routes/addressRoutes.js";
 
 dotenv.config();
 
@@ -41,6 +42,7 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/services", serviceRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/address", addressRoutes);
 
 /// ✅ ROOT CHECK
 app.get("/", (req, res) => {

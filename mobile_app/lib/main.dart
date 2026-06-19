@@ -11,7 +11,7 @@ import 'screens/add_service_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
 import 'localization/app_localizations.dart'; 
-
+import 'screens/address_screen.dart';
 
 import 'services/socket_service.dart';
 import 'config/api_config.dart';
@@ -105,6 +105,7 @@ class MyApp extends StatelessWidget {
 
             '/addService': (context) =>
                 const AddServiceScreen(),
+            '/address': (context) => const AddressScreen(),
 
             '/profile': (context) => ProfileScreen(),
             '/settings': (context) => SettingsScreen(),

@@ -61,10 +61,26 @@ const userSchema = new mongoose.Schema(
     },
 
     /// ✅ ADDRESS (LIKE SWIGGY)
-    address: {
-      type: String,
-      default: "",
-    },
+    
+    addresses: [
+      {
+        type: {
+          type: String,
+          enum: ["home", "work", "corporate", "other"],
+          default: "home",
+        },
+        addressLine: String,
+        landmark: String,
+        city: String,
+        state: String,
+        pincode: String,
+        isDefault: {
+          type: Boolean,
+          default: false,
+        },
+      },
+    ],
+
 
     /// ✅ GEO LOCATION (FUTURE READY)
     location: {

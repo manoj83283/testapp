@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/api_service.dart';
 import 'login_screen.dart';
@@ -15,7 +16,6 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController firstCtrl = TextEditingController();
@@ -25,6 +25,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController passCtrl = TextEditingController();
   final TextEditingController locationCtrl = TextEditingController();
   final TextEditingController dobCtrl = TextEditingController();
+  final TextEditingController shopController = TextEditingController(); // ✅ NEW
 
   bool isLoading = false;
 
@@ -66,14 +67,13 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   // ===========================================================
-  // ✅ SIGNUP FIX (UPDATED)
+  // ✅ ✅ FINAL SIGNUP (UPDATED CALL)
   // ===========================================================
   Future<void> handleSignup() async {
-
     if (!_formKey.currentState!.validate()) return;
 
     if (selectedDOB == null) {
-      showError("Date of Birth is required");
+      showError("Date of Birth required");
       return;
     }
 
@@ -85,38 +85,54 @@ class _SignupScreenState extends State<SignupScreen> {
     setState(() => isLoading = true);
 
     try {
+      /// ✅ FIX: combine name
+      final fullName =
+          "${firstCtrl.text.trim()} ${lastCtrl.text.trim()}".trim();
 
+      /// ✅ ✅ UPDATED API CALL (AS YOU REQUESTED)
       final res = await ApiService.signup(
-        firstName: firstCtrl.text,
-        lastName: lastCtrl.text,
-        email: emailCtrl.text,
-        phone: phoneCtrl.text,
-        password: passCtrl.text,
+        firstName: firstCtrl.text.trim(),
+        lastName: lastCtrl.text.trim(),
+        email: emailCtrl.text.trim(),
+        phone: phoneCtrl.text.trim(),
+        location: locationCtrl.text.trim(),
+        dob: selectedDOB!.toIso8601String(),
         role: widget.role,
-        dob: selectedDOB!.toIso8601String(), // ✅ IMPORTANT
-        location: locationCtrl.text,
+        shopName: shopController.text.trim(), // ✅ NEW
+        password: passCtrl.text.trim(), // ✅ keep password
       );
 
-      final user = res["user"];
-
-      if (user == null) {
-        Fluttertoast.showToast(msg: "Invalid response");
+      /// ✅ ERROR FROM BACKEND
+      if (res["msg"] != null) {
+        showError(res["msg"]);
         return;
       }
 
-      Fluttertoast.showToast(msg: "✅ Signup successful");
+      /// ✅ SAVE SESSION
+      final prefs = await SharedPreferences.getInstance();
 
-      if (!context.mounted) return;
+      await prefs.setString("token", res["token"] ?? "");
+      await prefs.setString("role", res["user"]["role"] ?? "");
 
-      /// ✅ REDIRECT TO LOGIN
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        '/login_user',
-        (route) => false,
-      );
+      if (!mounted) return;
+
+      /// ✅ ROLE REDIRECT
+      if (res["user"]["role"] == "provider") {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          "/providerHome",
+          (route) => false,
+        );
+      } else {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          "/home",
+          (route) => false,
+        );
+      }
 
     } catch (e) {
-      showError("Error: ${e.toString()}");
+      showError("Network error");
     } finally {
       setState(() => isLoading = false);
     }
@@ -129,7 +145,6 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-
     final isProvider = widget.role == "provider";
 
     return Scaffold(
@@ -166,7 +181,6 @@ class _SignupScreenState extends State<SignupScreen> {
               child: Column(
                 children: [
 
-                  /// ✅ HEADER
                   Text(
                     isProvider
                         ? "Register as Service Provider"
@@ -179,10 +193,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
                   const SizedBox(height: 20),
 
-                  buildField("First Name", firstCtrl),
+                  buildField("firstName", firstCtrl),
                   const SizedBox(height: 12),
 
-                  buildField("Last Name", lastCtrl),
+                  buildField("lastName", lastCtrl),
                   const SizedBox(height: 12),
 
                   buildField("Email", emailCtrl, isEmail: true),
@@ -194,11 +208,16 @@ class _SignupScreenState extends State<SignupScreen> {
                   buildField("Password", passCtrl, isPassword: true),
                   const SizedBox(height: 12),
 
-                  /// ✅ LOCATION
                   buildField("Location", locationCtrl),
                   const SizedBox(height: 12),
 
-                  /// ✅ DOB FIELD
+                  /// ✅ ONLY FOR PROVIDER
+                  if (isProvider) ...[
+                    buildField("Shop Name (Optional)", shopController),
+                    const SizedBox(height: 12),
+                  ],
+
+                  /// ✅ DOB
                   TextFormField(
                     controller: dobCtrl,
                     readOnly: true,
@@ -220,14 +239,14 @@ class _SignupScreenState extends State<SignupScreen> {
                     child: ElevatedButton(
                       onPressed: isLoading ? null : handleSignup,
                       child: isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
+                          ? const CircularProgressIndicator(
+                              color: Colors.white)
                           : const Text("Sign Up"),
                     ),
                   ),
 
                   const SizedBox(height: 10),
 
-                  /// ✅ LOGIN NAV
                   TextButton(
                     onPressed: () {
                       Navigator.pushReplacement(
@@ -265,15 +284,25 @@ class _SignupScreenState extends State<SignupScreen> {
           : isEmail
               ? TextInputType.emailAddress
               : TextInputType.text,
-      decoration: InputDecoration(
-        labelText: label,
+      decoration: const InputDecoration(
         border: OutlineInputBorder(),
-      ),
+      ).copyWith(labelText: label),
       validator: (v) {
         if (v == null || v.isEmpty) return "Required";
-        if (isEmail && !v.contains("@")) return "Invalid email";
-        if (isPhone && v.length < 10) return "Invalid phone";
-        if (isPassword && v.length < 6) return "Min 6 characters";
+
+        if (isEmail &&
+            !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
+          return "Invalid email";
+        }
+
+        if (isPhone && v.length < 10) {
+          return "Invalid phone";
+        }
+
+        if (isPassword && v.length < 6) {
+          return "Min 6 characters";
+        }
+
         return null;
       },
     );

@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
+
 import '../services/api_service.dart';
 import 'booking_success_screen.dart';
+import 'address_screen.dart';
+
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 class BookingScreen extends StatefulWidget {
   final Map<String, dynamic> service;
@@ -19,9 +24,11 @@ class _BookingScreenState extends State<BookingScreen> {
 
   String paymentMethod = "COD";
 
-  final TextEditingController notesController = TextEditingController();
-  final TextEditingController addressController = TextEditingController(); // ✅ NEW
-  final TextEditingController locationController = TextEditingController(); // ✅ NEW
+  final notesController = TextEditingController();
+  final addressController = TextEditingController();
+  final locationController = TextEditingController();
+
+  Map<String, dynamic>? selectedAddress;
 
   late Razorpay _razorpay;
 
@@ -33,37 +40,84 @@ class _BookingScreenState extends State<BookingScreen> {
 
     _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, handlePaymentSuccess);
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, handlePaymentError);
-    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, handleExternalWallet);
   }
 
   @override
   void dispose() {
     _razorpay.clear();
     notesController.dispose();
-    addressController.dispose(); // ✅
-    locationController.dispose(); // ✅
+    addressController.dispose();
+    locationController.dispose();
     super.dispose();
   }
 
-  /// ✅ DATE PICKER
+  // ✅ DATE
   void pickDate() async {
-    final now = DateTime.now();
-
     final picked = await showDatePicker(
       context: context,
-      initialDate: now,
-      firstDate: now,
-      lastDate: DateTime(now.year + 1),
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2030),
     );
 
     if (picked != null) {
+      setState(() => selectedDate = picked);
+    }
+  }
+
+  // ✅ SELECT SAVED ADDRESS
+  Future<void> selectAddress() async {
+    final selected = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AddressScreen()),
+    );
+
+    if (selected != null) {
       setState(() {
-        selectedDate = picked;
+        selectedAddress = selected;
+
+        addressController.text = selected["addressLine"] ?? "";
+        locationController.text =
+            "${selected["city"] ?? ""}, ${selected["state"] ?? ""}";
       });
     }
   }
 
-  /// ✅ COD BOOKING
+  // ✅ AUTO LOCATION
+  Future<void> detectLocation() async {
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      List<Placemark> placemarks =
+          await placemarkFromCoordinates(
+              position.latitude, position.longitude);
+
+      final place = placemarks.first;
+
+      setState(() {
+        addressController.text = place.street ?? "";
+        locationController.text =
+            "${place.locality ?? ""}, ${place.administrativeArea ?? ""}";
+      });
+
+    } catch (e) {
+      debugPrint("Location error: $e");
+    }
+  }
+
+  // ✅ FINAL ADDRESS
+  String getFinalAddress() {
+    if (selectedAddress != null) {
+      return "${selectedAddress!["addressLine"]}, "
+             "${selectedAddress!["city"]}, "
+             "${selectedAddress!["state"]}";
+    }
+    return addressController.text.trim();
+  }
+
+  // ✅ COD BOOKING
   Future<void> bookCOD() async {
     try {
       setState(() => isLoading = true);
@@ -73,53 +127,36 @@ class _BookingScreenState extends State<BookingScreen> {
         date: selectedDate!,
         notes: notesController.text.trim(),
         paymentMethod: "COD",
-        address: addressController.text.trim(),     // ✅ NEW
-        location: locationController.text.trim(),   // ✅ NEW
+        address: getFinalAddress(),
+        location: locationController.text.trim(),
       );
-
-      setState(() => isLoading = false);
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => const BookingSuccessScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const BookingSuccessScreen()),
       );
 
     } catch (e) {
-      setState(() => isLoading = false);
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Booking failed: $e")),
       );
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
-  /// ✅ START PAYMENT
+  // ✅ PAYMENT
   void startPayment() {
-    final service = widget.service;
+    int amount = widget.service["pricePerDay"] ?? 500;
 
-    int amount = 500;
-
-    if (service["pricePerDay"] != null) {
-      amount = service["pricePerDay"];
-    }
-
-    var options = {
-      'key': 'rzp_test_123', // replace later
+    _razorpay.open({
+      'key': 'rzp_test_123',
       'amount': amount * 100,
-      'name': service["name"] ?? "Service",
-      'description': service["serviceType"] ?? "",
-    };
-
-    try {
-      _razorpay.open(options);
-    } catch (e) {
-      print("Payment error: $e");
-    }
+      'name': widget.service["name"] ?? "Service",
+    });
   }
 
-  /// ✅ PAYMENT SUCCESS
+  // ✅ PAYMENT SUCCESS
   void handlePaymentSuccess(PaymentSuccessResponse response) async {
     try {
       await ApiService.createBooking(
@@ -127,15 +164,13 @@ class _BookingScreenState extends State<BookingScreen> {
         date: selectedDate!,
         notes: notesController.text.trim(),
         paymentMethod: "ONLINE",
-        address: addressController.text.trim(),     // ✅
-        location: locationController.text.trim(),   // ✅
+        address: getFinalAddress(),
+        location: locationController.text.trim(),
       );
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => const BookingSuccessScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const BookingSuccessScreen()),
       );
 
     } catch (e) {
@@ -151,8 +186,7 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
-  void handleExternalWallet(ExternalWalletResponse response) {}
-
+  // ✅ UI
   @override
   Widget build(BuildContext context) {
 
@@ -161,14 +195,13 @@ class _BookingScreenState extends State<BookingScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text("Book Service")),
 
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
 
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            /// ✅ SERVICE INFO
             Text(
               service["name"] ?? "",
               style: const TextStyle(
@@ -177,24 +210,16 @@ class _BookingScreenState extends State<BookingScreen> {
               ),
             ),
 
-            const SizedBox(height: 6),
-
-            Text("Provider: ${service["providerName"] ?? ""}"),
-
             const SizedBox(height: 20),
 
             /// ✅ DATE
-            const Text("Select Date"),
-
-            const SizedBox(height: 10),
-
             Row(
               children: [
                 Expanded(
                   child: Text(
                     selectedDate == null
-                        ? "No date selected"
-                        : "${selectedDate!.toLocal()}".split(" ")[0],
+                        ? "Select Date"
+                        : selectedDate!.toString().split(" ")[0],
                   ),
                 ),
                 ElevatedButton(
@@ -206,61 +231,74 @@ class _BookingScreenState extends State<BookingScreen> {
 
             const SizedBox(height: 20),
 
-            /// ✅ ADDRESS
+            /// ✅ ADDRESS SELECT
+            ElevatedButton.icon(
+              onPressed: selectAddress,
+              icon: const Icon(Icons.location_on),
+              label: const Text("Select Saved Address"),
+            ),
+
+            const SizedBox(height: 10),
+
+            /// ✅ ADDRESS + GPS
+            Row(
+              children: [
+
+                Expanded(
+                  child: TextField(
+                    controller: addressController,
+                    decoration: const InputDecoration(
+                      labelText: "Address",
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                IconButton(
+                  icon: const Icon(Icons.my_location, color: Colors.blue),
+                  onPressed: detectLocation,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            /// ✅ LOCATION
             TextField(
-              controller: addressController,
+              controller: locationController,
               decoration: const InputDecoration(
-                labelText: "Enter Delivery Address",
+                labelText: "Location",
                 border: OutlineInputBorder(),
               ),
             ),
 
             const SizedBox(height: 15),
 
-            /// ✅ LOCATION
-            TextField(
-              controller: locationController,
-              decoration: const InputDecoration(
-                labelText: "Enter Location (City/Area)",
-                border: OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            /// ✅ PAYMENT METHOD
-            const Text("Payment Method"),
-
             DropdownButton<String>(
               value: paymentMethod,
               isExpanded: true,
-              items: ["COD", "ONLINE"].map((e) {
-                return DropdownMenuItem(
-                  value: e,
-                  child: Text(e),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  paymentMethod = value!;
-                });
+              items: ["COD", "ONLINE"]
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
+              onChanged: (val) {
+                setState(() => paymentMethod = val!);
               },
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 15),
 
-            /// ✅ NOTES
             TextField(
               controller: notesController,
               decoration: const InputDecoration(
-                labelText: "Additional Notes",
+                labelText: "Notes",
                 border: OutlineInputBorder(),
               ),
             ),
 
-            const Spacer(),
+            const SizedBox(height: 30),
 
-            /// ✅ BUTTON
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -270,15 +308,14 @@ class _BookingScreenState extends State<BookingScreen> {
 
                         if (selectedDate == null) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Please select date")),
+                            const SnackBar(content: Text("Select date")),
                           );
                           return;
                         }
 
-                        if (addressController.text.trim().isEmpty ||
-                            locationController.text.trim().isEmpty) {
+                        if (getFinalAddress().isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Enter address & location")),
+                            const SnackBar(content: Text("Enter address")),
                           );
                           return;
                         }
