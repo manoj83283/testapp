@@ -1,8 +1,28 @@
 import Service from "../models/service.js";
 
 
+// ===========================================================
+// ✅ DISTANCE FUNCTION (NEW - NEAREST LOGIC)
+// ===========================================================
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371;
 
-/// ✅ CREATE SERVICE (ONLY PROVIDER)
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) *
+    Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) ** 2;
+
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+
+// ===========================================================
+// ✅ CREATE SERVICE (ONLY PROVIDER)
+// ===========================================================
 export const createService = async (req, res) => {
   try {
 
@@ -87,14 +107,24 @@ export const createService = async (req, res) => {
 };
 
 
-
-/// ✅ GET SERVICES (CUSTOMER SIDE)
+// ===========================================================
+// ✅ ✅ ✅ GET SERVICES (MERGED + UPGRADED)
+// ===========================================================
 export const getServices = async (req, res) => {
   try {
-    const { category, search, minPrice, maxPrice } = req.query;
+    const {
+      category,
+      search,
+      minPrice,
+      maxPrice,
+      lat,
+      lng,
+      sort,
+    } = req.query;
 
     const filter = {
-      isAvailable: true, // ✅ only visible services
+      isAvailable: true,
+      isActive: true,
     };
 
     if (category) {
@@ -120,12 +150,56 @@ export const getServices = async (req, res) => {
     }
 
     const services = await Service.find(filter)
-      .populate("provider", "firstName email")
+      .populate("provider")
       .sort({ createdAt: -1 });
 
-    console.log(`✅ Services fetched: ${services.length}`);
+    let updated = services.map((s) => {
+      let distance = 999;
 
-    res.status(200).json(services);
+      if (lat && lng && s.provider?.location?.coordinates) {
+        const lat2 = s.provider.location.coordinates[1];
+        const lng2 = s.provider.location.coordinates[0];
+
+        distance = getDistance(Number(lat), Number(lng), lat2, lng2);
+      }
+
+      return {
+        ...s._doc,
+        distance,
+      };
+    });
+
+    updated.sort((a, b) => {
+      const scoreA =
+        (a.distance || 999) * 0.7 +
+        (a.pricePerDay || 500) * 0.3;
+
+      const scoreB =
+        (b.distance || 999) * 0.7 +
+        (b.pricePerDay || 500) * 0.3;
+
+      return scoreA - scoreB;
+    });
+
+    if (sort === "nearest") {
+      updated.sort((a, b) => a.distance - b.distance);
+    }
+
+    if (sort === "low_price") {
+      updated.sort((a, b) =>
+        (a.pricePerDay || 0) - (b.pricePerDay || 0)
+      );
+    }
+
+    if (sort === "high_price") {
+      updated.sort((a, b) =>
+        (b.pricePerDay || 0) - (a.pricePerDay || 0)
+      );
+    }
+
+    console.log(`✅ Services fetched: ${updated.length}`);
+
+    res.status(200).json(updated);
 
   } catch (err) {
     console.error("❌ Get Services Error:", err.message);
@@ -138,8 +212,9 @@ export const getServices = async (req, res) => {
 };
 
 
-
-/// ✅ GET PROVIDER'S OWN SERVICES
+// ===========================================================
+// ✅ GET PROVIDER'S OWN SERVICES
+// ===========================================================
 export const getMyServices = async (req, res) => {
   try {
 
@@ -164,8 +239,8 @@ export const getMyServices = async (req, res) => {
 };
 
 
-
-/// ✅ UPDATE SERVICE
+// ===========================================================
+// ✅ UPDATE SERVICE (🔥 UPDATED WITH REAL-TIME REFRESH)
 export const updateService = async (req, res) => {
   try {
     const service = await Service.findById(req.params.id);
@@ -176,22 +251,23 @@ export const updateService = async (req, res) => {
       });
     }
 
-    /// ✅ ONLY OWNER
     if (service.provider.toString() !== req.user.id) {
       return res.status(403).json({
         message: "Not allowed",
       });
     }
 
-    /// ✅ UPDATE FIELDS
     Object.assign(service, req.body);
 
-    /// ✅ NORMALIZE CATEGORY (if updated)
     if (req.body.category) {
       service.category = req.body.category.toLowerCase().trim();
     }
 
     await service.save();
+
+    // ✅ ✅ YOUR REQUIRED CHANGE
+    // ✅ notify instantly all users (customer + providers)
+    global.io.emit("refreshServices");
 
     res.json({
       message: "✅ Service updated",
@@ -207,8 +283,9 @@ export const updateService = async (req, res) => {
 };
 
 
-
-/// ✅ DELETE SERVICE
+// ===========================================================
+// ✅ DELETE SERVICE
+// ===========================================================
 export const deleteService = async (req, res) => {
   try {
     const service = await Service.findById(req.params.id);
@@ -219,7 +296,6 @@ export const deleteService = async (req, res) => {
       });
     }
 
-    /// ✅ ONLY OWNER
     if (service.provider.toString() !== req.user.id) {
       return res.status(403).json({
         message: "Not allowed",

@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
 import '../services/socket_service.dart';
 
@@ -26,6 +28,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String? bookingStatus;
 
+  Timer? _chatTimer;
+
   @override
   void initState() {
     super.initState();
@@ -36,28 +40,48 @@ class _ChatScreenState extends State<ChatScreen> {
     /// ✅ JOIN ROOM
     SocketService.joinRoom(widget.roomId);
 
-    /// ✅ LOAD OLD MESSAGES (API)
+    /// ✅ LOAD HISTORY
     loadMessages();
 
-    /// ✅ REAL-TIME CHAT
+    /// ✅ POLLING (kept)
+    _chatTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => loadMessages(),
+    );
+
+    /// ✅ REAL-TIME (service wrapper)
     SocketService.listenMessages((data) {
       final msg = Map<String, dynamic>.from(data);
 
-      setState(() {
-        messages.add(msg);
-      });
+      if (msg["roomId"] == widget.roomId) {
+        setState(() {
+          messages.add(msg);
+        });
 
-      scrollToBottom();
+        scrollToBottom();
+      }
     });
 
-    /// ✅ REAL-TIME BOOKING STATUS
+    /// ✅ DIRECT SOCKET LISTENER ✅ FIXED
+    SocketService.socket?.on("receiveMessage", (data) {
+      final msg = Map<String, dynamic>.from(data);
+
+      if (msg["roomId"] == widget.roomId) {
+        setState(() {
+          messages.add(msg);
+        });
+
+        scrollToBottom();
+      }
+    });
+
+    /// ✅ BOOKING STATUS UPDATE
     SocketService.listenBookingUpdate((data) {
       if (data["chatRoomId"] == widget.roomId) {
         setState(() {
           bookingStatus = data["status"];
         });
 
-        /// ✅ USER FEEDBACK
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Booking ${data["status"]}"),
@@ -69,7 +93,9 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  /// ✅ LOAD CHAT HISTORY
+  // ==========================================================
+  // ✅ LOAD CHAT HISTORY
+  // ==========================================================
   Future<void> loadMessages() async {
     try {
       final data = await ApiService.getMessages(widget.roomId);
@@ -87,7 +113,9 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// ✅ SEND MESSAGE
+  // ==========================================================
+  // ✅ SEND MESSAGE
+  // ==========================================================
   void sendMessage() {
     final text = controller.text.trim();
     if (text.isEmpty) return;
@@ -99,20 +127,26 @@ class _ChatScreenState extends State<ChatScreen> {
       "message": text,
     };
 
+    /// ✅ SOCKET SEND
     SocketService.sendMessage(
       roomId: widget.roomId,
       message: text,
       senderId: widget.currentUserId,
     );
 
-    /// ✅ INSTANT UI (OPTIMISTIC UPDATE)
+    /// ✅ RAW BACKUP
+    SocketService.sendMessageRaw(msg);
+
+    /// ✅ UI UPDATE
     setState(() => messages.add(msg));
 
     controller.clear();
     scrollToBottom();
   }
 
-  /// ✅ AUTO SCROLL
+  // ==========================================================
+  // ✅ AUTO SCROLL
+  // ==========================================================
   void scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (scrollController.hasClients) {
@@ -125,7 +159,9 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  /// ✅ STATUS COLOR UI
+  // ==========================================================
+  // ✅ STATUS COLOR
+  // ==========================================================
   Color getStatusColor(String status) {
     switch (status) {
       case "accepted":
@@ -143,9 +179,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _chatTimer?.cancel();
+
+    /// ✅ FIXED NULL SAFE
+    SocketService.socket?.off("receiveMessage");
+
     SocketService.removeListeners();
     controller.dispose();
     scrollController.dispose();
+
     super.dispose();
   }
 
@@ -160,7 +202,7 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
 
-          /// ✅ BOOKING STATUS BANNER
+          /// ✅ BOOKING STATUS
           if (bookingStatus != null)
             Container(
               width: double.infinity,
@@ -217,6 +259,7 @@ class _ChatScreenState extends State<ChatScreen> {
           /// ✅ INPUT
           Row(
             children: [
+
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(8),
@@ -229,6 +272,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
               ),
+
               IconButton(
                 icon: const Icon(Icons.send),
                 onPressed: sendMessage,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'chat_screen.dart';
+import 'provider_tracking_screen.dart'; // ✅ ADDED
 
 class ProviderBookingsScreen extends StatefulWidget {
   const ProviderBookingsScreen({super.key});
@@ -197,25 +198,46 @@ class _ProviderBookingsScreenState
 
                             const SizedBox(height: 10),
 
-                            /// ✅ CHAT BUTTON
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton.icon(
-                                icon: const Icon(Icons.chat),
-                                label: const Text("Chat"),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ChatScreen(
-                                        roomId: b["user"]["_id"],
-                                        currentUserId:b["service"]["provider"],
-                                        receiverId: b["user"]["_id"],
+                            /// ✅ ACTION ROW (CHAT + TRACKING)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+
+                                /// ✅ CHAT BUTTON
+                                TextButton.icon(
+                                  icon: const Icon(Icons.chat),
+                                  label: const Text("Chat"),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ChatScreen(
+                                          roomId: b["user"]["_id"],
+                                          currentUserId:
+                                              b["service"]["provider"],
+                                          receiverId: b["user"]["_id"],
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                              ),
+                                    );
+                                  },
+                                ),
+
+                                /// ✅ ✅ NEW TRACKING BUTTON
+                                TextButton.icon(
+                                  icon: const Icon(Icons.location_on),
+                                  label: const Text("Track"),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ProviderTrackingScreen(
+                                          bookingId: b["_id"],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
                           ],
                         ),

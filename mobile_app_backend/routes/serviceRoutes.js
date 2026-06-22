@@ -1,4 +1,5 @@
 import express from "express";
+import Service from "../models/service.js"; // ✅ REQUIRED (for availability toggle)
 
 import {
   createService,
@@ -15,6 +16,7 @@ import {
 
 const router = express.Router();
 
+
 /// ✅ CREATE SERVICE (PROVIDER ONLY)
 router.post(
   "/",
@@ -23,8 +25,10 @@ router.post(
   createService
 );
 
-/// ✅ GET ALL SERVICES (PUBLIC + FILTER SUPPORT)
+
+/// ✅ GET ALL SERVICES (PUBLIC + FILTER + LOCATION SORT SUPPORT ✅)
 router.get("/", getServices);
+
 
 /// ✅ GET MY SERVICES (PROVIDER DASHBOARD)
 router.get(
@@ -34,6 +38,7 @@ router.get(
   getMyServices
 );
 
+
 /// ✅ UPDATE SERVICE
 router.put(
   "/:id",
@@ -41,6 +46,7 @@ router.put(
   authorizeRoles("provider"),
   updateService
 );
+
 
 /// ✅ DELETE SERVICE
 router.delete(
@@ -50,7 +56,8 @@ router.delete(
   deleteService
 );
 
-/// ✅ ✅ OPTIONAL: TOGGLE AVAILABILITY (GOOD UX 🔥)
+
+/// ✅ ✅ TOGGLE AVAILABILITY (VERY IMPORTANT FOR PROVIDER UX 🔥)
 router.put(
   "/:id/availability",
   protect,
@@ -63,11 +70,25 @@ router.put(
         { new: true }
       );
 
-      res.json(service);
+      if (!service) {
+        return res.status(404).json({
+          message: "Service not found",
+        });
+      }
+
+      res.json({
+        message: "✅ Availability updated",
+        service,
+      });
+
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      res.status(500).json({
+        message: err.message,
+      });
     }
   }
 );
 
+
+/// ✅ EXPORT ROUTER
 export default router;

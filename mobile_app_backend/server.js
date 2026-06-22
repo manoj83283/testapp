@@ -29,12 +29,18 @@ export const io = new Server(server, {
   },
 });
 
+// ✅ OPTIONAL GLOBAL ACCESS
+global.io = io;
+
+
 /// ✅ DB CONNECTION
 connectDB();
+
 
 /// ✅ MIDDLEWARE
 app.use(cors()); // ✅ CORS FIX APPLIED
 app.use(express.json());
+
 
 /// ✅ ROUTES
 app.use("/api/auth", authRoutes);
@@ -44,22 +50,43 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/address", addressRoutes);
 
+
 /// ✅ ROOT CHECK
 app.get("/", (req, res) => {
   res.send("✅ Backend + Socket running");
 });
 
+
 /// ✅ ✅ ✅ SOCKET EVENTS (REAL-TIME SYSTEM)
 io.on("connection", (socket) => {
   console.log("✅ User connected:", socket.id);
 
-  /// ✅ JOIN ROOM (Booking Chat Room)
+  // =====================================================
+  // ✅ JOIN ROOM (Booking / Chat)
+  // =====================================================
   socket.on("joinRoom", (roomId) => {
     socket.join(roomId);
     console.log("📦 Joined room:", roomId);
   });
 
-  /// ✅ SEND MESSAGE (CHAT)
+  // =====================================================
+  // ✅ ✅ PROVIDER STATUS CHANGE (UPDATED ✅)
+  // =====================================================
+  socket.on("providerStatusChange", () => {
+    try {
+      console.log("🔄 Provider status changed");
+
+      // ✅ broadcast to ALL users
+      io.emit("refreshServices");
+
+    } catch (error) {
+      console.error("❌ Provider Status Error:", error.message);
+    }
+  });
+
+  // =====================================================
+  // ✅ SEND MESSAGE (CHAT)
+  // =====================================================
   socket.on("sendMessage", (data) => {
     try {
       const { roomId, message, senderId } = data;
@@ -77,24 +104,45 @@ io.on("connection", (socket) => {
         roomId,
         createdAt: new Date(),
       });
+
     } catch (error) {
       console.error("❌ Message Error:", error.message);
     }
   });
 
-  /// ✅ NEW BOOKING (REAL-TIME ORDER PUSH)
+  // =====================================================
+  // ✅ LIVE LOCATION (NEW ✅ Uber-style tracking)
+  // =====================================================
+  socket.on("updateLocation", (data) => {
+    try {
+      // data = { roomId, lat, lng }
+      io.to(data.roomId).emit("liveLocation", data);
+    } catch (error) {
+      console.error("❌ Location Error:", error.message);
+    }
+  });
+
+  // =====================================================
+  // ✅ NEW BOOKING (REAL-TIME ORDER PUSH)
+  // =====================================================
   socket.on("newBooking", (booking) => {
     try {
       console.log("🆕 New Booking:", booking?._id);
 
       /// broadcast globally
       io.emit("bookingUpdate", booking);
+
+      /// ✅ ALSO REFRESH SERVICES
+      io.emit("refreshServices");
+
     } catch (error) {
       console.error("❌ Booking Error:", error.message);
     }
   });
 
-  /// ✅ BOOKING STATUS UPDATE
+  // =====================================================
+  // ✅ BOOKING STATUS UPDATE
+  // =====================================================
   socket.on("bookingStatusChanged", (booking) => {
     try {
       console.log("🔄 Booking Updated:", booking?._id);
@@ -106,16 +154,23 @@ io.on("connection", (socket) => {
       if (booking?.chatRoomId) {
         io.to(booking.chatRoomId).emit("bookingUpdate", booking);
       }
+
+      /// ✅ REFRESH SERVICES
+      io.emit("refreshServices");
+
     } catch (error) {
       console.error("❌ Status Update Error:", error.message);
     }
   });
 
-  /// ✅ DISCONNECT
+  // =====================================================
+  // ✅ DISCONNECT
+  // =====================================================
   socket.on("disconnect", () => {
     console.log("❌ Disconnected:", socket.id);
   });
 });
+
 
 /// ✅ START SERVER
 const PORT = process.env.PORT || 5000;

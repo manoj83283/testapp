@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/language_selector.dart';
 
 import '../services/api_service.dart';
 import '../services/socket_service.dart';
@@ -95,7 +96,7 @@ class _ProviderDashboardScreenState
     }
   }
 
-  /// ✅ UPDATE STATUS
+  /// ✅ UPDATE STATUS (BOOKINGS)
   void updateStatus(String id, String status) async {
     await ApiService.updateBookingStatus(
       bookingId: id,
@@ -258,11 +259,15 @@ class _ProviderDashboardScreenState
                             Switch(
                               value: active,
                               onChanged: (val) async {
+                                // ✅ UPDATE BACKEND
                                 await ApiService.updateServiceStatus(
                                     s["_id"], val);
-                                setState(() {
-                                  s["isActive"] = val;
-                                });
+
+                                // ✅ ✅ NOTIFY ALL CLIENTS (YOUR REQUIREMENT)
+                                SocketService.notifyProviderStatus();
+
+                                // ✅ REFRESH LOCAL DATA
+                                loadAllData();
                               },
                             ),
                             IconButton(
@@ -298,7 +303,7 @@ class _ProviderDashboardScreenState
             ),
           ),
 
-          /// ✅ LANGUAGE SELECTOR (UPGRADED)
+          /// ✅ LANGUAGE SELECTOR
           ValueListenableBuilder<Locale>(
             valueListenable: localeNotifier,
             builder: (_, locale, __) {

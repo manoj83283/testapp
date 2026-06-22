@@ -2,6 +2,7 @@ import Booking from "../models/booking.js";
 import Service from "../models/service.js";
 import { io } from "../server.js";
 
+
 /// ✅ CREATE BOOKING (FULL LOGIC + REAL-TIME + ROOM)
 export const createBooking = async (req, res) => {
   try {
@@ -46,6 +47,10 @@ export const createBooking = async (req, res) => {
       status: "pending",
       chatRoomId,
     });
+
+    /// ✅ ✅ NEW (YOUR REQUIREMENT)
+    // ✅ notify all customers/providers to refresh services
+    global.io.emit("refreshServices");
 
     /// ✅ POPULATE FULL DATA
     const populatedBooking = await Booking.findById(booking._id)
@@ -141,9 +146,13 @@ export const updateBookingStatus = async (req, res) => {
 
     /// ✅ 🔥 REAL-TIME EVENTS
     io.emit("bookingUpdate", booking);
+
     if (booking.chatRoomId) {
       io.to(booking.chatRoomId).emit("bookingUpdate", booking);
     }
+
+    /// ✅ ALSO REFRESH SERVICES
+    global.io.emit("refreshServices");
 
     res.json(booking);
 
@@ -177,9 +186,13 @@ export const cancelBooking = async (req, res) => {
 
     /// ✅ 🔥 REAL-TIME UPDATE
     io.emit("bookingUpdate", booking);
+
     if (booking.chatRoomId) {
       io.to(booking.chatRoomId).emit("bookingUpdate", booking);
     }
+
+    /// ✅ ALSO REFRESH SERVICES
+    global.io.emit("refreshServices");
 
     res.json({ message: "Booking cancelled", booking });
 
